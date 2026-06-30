@@ -8,9 +8,10 @@ import AuthButton from "@/components/AuthButton";
 const tools = [
   { href: "/tools/risk-model",      label: "Risk Model" },
   { href: "/tools/fear-greed",      label: "Fear & Greed" },
-  { href: "/tools/macro",           label: "Macro Dashboard" },
+  { href: "/tools/macro",           label: "Macro" },
   { href: "/tools/dca-calculator",  label: "DCA Calculator" },
-  { href: "/tools/portfolio",       label: "Portfolio Tracker" },
+  { href: "/tools/portfolio",       label: "Portfolio" },
+  { href: "/tools/whale-tracker",   label: "Whale Tracker" },
 ];
 
 export default function Navbar() {

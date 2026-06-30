@@ -53,6 +53,16 @@ const tools = [
     features: ["Live prices · P&L · ROI", "Allocation donut chart", "BTC · ETH · SOL · XRP · BNB +more"],
   },
   {
+    href: "/tools/whale-tracker",
+    icon: "🐳",
+    label: "Whale Tracker",
+    tag: "Live",
+    tagColor: "var(--green)",
+    description:
+      "Real-time feed of Bitcoin transfers over 100 BTC. Track where the big money is moving — large transactions often precede major price action.",
+    features: ["Transactions ≥ 100 BTC", "USD value · size classification", "Live feed with tx links"],
+  },
+  {
     href: "/tools/onchain",
     icon: "🔗",
     label: "On-Chain Analytics",
