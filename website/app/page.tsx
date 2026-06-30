@@ -16,11 +16,11 @@ const tools = [
     href: "/tools/fear-greed",
     icon: "🌡️",
     label: "Fear & Greed",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
+    tag: "Live",
+    tagColor: "var(--green)",
     description:
-      "Deep-dive into market sentiment across multiple timeframes. See how fear and greed historically correlate with price cycles.",
-    features: ["Historical sentiment chart", "Correlation with price action", "Multi-asset comparison"],
+      "Track crypto market sentiment on a 0–100 scale. Extreme fear historically signals buying opportunities; extreme greed often precedes corrections.",
+    features: ["Live score + gauge", "365-day history chart", "Yesterday · 1W · 1M snapshots"],
   },
   {
     href: "/tools/macro",
