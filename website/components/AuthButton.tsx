@@ -10,6 +10,11 @@ export default function AuthButton() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     supabase.auth.getUser().then(({ data }) => {
@@ -25,6 +30,7 @@ export default function AuthButton() {
   }, []);
 
   async function handleSignOut() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
