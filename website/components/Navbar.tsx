@@ -31,9 +31,16 @@ export default function Navbar() {
         <div style={{ display: "flex", alignItems: "center", height: 60, gap: 32 }}>
 
           {/* Logo */}
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text)", letterSpacing: "-0.02em" }}>
-              Asset<span style={{ color: "var(--blue)" }}>Strat</span>
+          <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 9 }}>
+            {/* Logo mark: rising bars */}
+            <svg width="22" height="20" viewBox="0 0 22 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0" y="12" width="4" height="8" rx="1.5" fill="#4f7cff" opacity="0.5"/>
+              <rect x="6" y="7" width="4" height="13" rx="1.5" fill="#4f7cff" opacity="0.75"/>
+              <rect x="12" y="3" width="4" height="17" rx="1.5" fill="#4f7cff"/>
+              <rect x="18" y="0" width="4" height="20" rx="1.5" fill="#34d399"/>
+            </svg>
+            <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)", letterSpacing: "-0.02em" }}>
+              Alpha<span style={{ color: "var(--blue)" }}>bit</span>
             </span>
           </Link>
 

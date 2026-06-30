@@ -96,8 +96,8 @@ export default function Home() {
               marginBottom: 20,
             }}
           >
-            Smarter crypto investing{" "}
-            <span style={{ color: "var(--blue)" }}>backed by data</span>
+            Data-driven crypto investing,{" "}
+            <span style={{ color: "var(--blue)" }}>built for alpha</span>
           </h1>
 
           <p style={{ fontSize: "1.1rem", color: "var(--muted)", lineHeight: 1.7, maxWidth: 560, marginBottom: 36 }}>
@@ -225,7 +225,7 @@ export default function Home() {
         >
           <div>
             <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 8 }}>Free to use. No signup required.</h2>
-            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>All tools are currently free. Open the Risk Model and start exploring.</p>
+            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>All Alphabit tools are free. Open the Risk Model and start exploring.</p>
           </div>
           <Link
             href="/tools/risk-model"

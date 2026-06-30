@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Risk Model — AssetStrat",
+  title: "Risk Model — Alphabit",
   description: "13-factor crypto risk model with weekly buy/sell signals for BTC, ETH, SOL and more.",
 };
 

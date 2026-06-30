@@ -4,9 +4,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "AssetStrat — Crypto Investment Tools",
+  title: "Alphabit — Data-driven crypto investing",
   description:
-    "Risk-managed crypto investment tools. Risk models, portfolio tracking, DCA calculators, and macro dashboards — all in one place.",
+    "Data-driven crypto investment tools. Risk models, portfolio tracking, DCA calculators, and macro dashboards — all in one place.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

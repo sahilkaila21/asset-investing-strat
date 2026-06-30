@@ -64,7 +64,7 @@ export default function LoginPage() {
             marginBottom: 8,
           }}
         >
-          Sign in to AssetStrat
+          Sign in to Alphabit
         </h1>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: 28 }}>
           We&apos;ll send a magic link to your email — no password needed.

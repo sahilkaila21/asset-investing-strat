@@ -12,11 +12,19 @@ export default function Footer() {
     >
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexWrap: "wrap", gap: 24, justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: "1rem", marginBottom: 4 }}>
-            Asset<span style={{ color: "var(--blue)" }}>Strat</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <svg width="18" height="16" viewBox="0 0 22 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0" y="12" width="4" height="8" rx="1.5" fill="#4f7cff" opacity="0.5"/>
+              <rect x="6" y="7" width="4" height="13" rx="1.5" fill="#4f7cff" opacity="0.75"/>
+              <rect x="12" y="3" width="4" height="17" rx="1.5" fill="#4f7cff"/>
+              <rect x="18" y="0" width="4" height="20" rx="1.5" fill="#34d399"/>
+            </svg>
+            <span style={{ fontWeight: 700, fontSize: "1rem" }}>
+              Alpha<span style={{ color: "var(--blue)" }}>bit</span>
+            </span>
           </div>
           <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>
-            Risk-managed crypto investment tools.
+            Data-driven crypto investment tools.
           </div>
         </div>
 
@@ -35,7 +43,7 @@ export default function Footer() {
         </div>
 
         <div style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
-          © {new Date().getFullYear()} AssetStrat. For informational purposes only.
+          © {new Date().getFullYear()} Alphabit. For informational purposes only.
         </div>
       </div>
     </footer>
