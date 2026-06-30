@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 
 type WhaleTx = {
   hash: string;
-  time: number;        // unix seconds
+  time: number;
   inputCount: number;
   outputCount: number;
   outputSat: number;
   btc: number;
+  blockHeight: number;
 };
 
 function fmtBtc(btc: number) {
@@ -28,9 +29,9 @@ function timeAgo(unixSec: number) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 function sizeLabel(btc: number) {
-  if (btc >= 10000) return { label: "Mega Whale", color: "#34d399" };
-  if (btc >= 1000)  return { label: "Whale",      color: "#4f7cff" };
-  if (btc >= 500)   return { label: "Large",      color: "#facc15" };
+  if (btc >= 1000) return { label: "Mega Whale", color: "#34d399" };
+  if (btc >= 100)  return { label: "Whale",      color: "#4f7cff" };
+  if (btc >= 50)   return { label: "Large",      color: "#facc15" };
   return               { label: "Big Fish",    color: "#fb923c" };
 }
 
@@ -75,7 +76,7 @@ export default function WhaleTracker() {
             Large BTC transactions
           </h1>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", maxWidth: 500 }}>
-            Real-time feed of Bitcoin transfers over 100 BTC. Large movements often precede price action — watch where the money flows.
+            Feed of Bitcoin transfers ≥ 10 BTC from recent confirmed blocks. Large movements often precede price action — watch where the money flows.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -106,9 +107,9 @@ export default function WhaleTracker() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
             {[
               { label: "Transactions shown", value: txs.length.toString() },
-              { label: "Total BTC (unconfirmed)", value: `${fmtBtc(totalBtc)} BTC` },
-              { label: "Source", value: "Mempool" },
-              { label: "Threshold", value: "≥ 50 BTC" },
+              { label: "Total BTC moved", value: `${fmtBtc(totalBtc)} BTC` },
+              { label: "Source", value: "Mempool.space" },
+              { label: "Threshold", value: "≥ 10 BTC" },
             ].map((s) => (
               <div key={s.label} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <p style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</p>
@@ -123,7 +124,7 @@ export default function WhaleTracker() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Size", "Amount (BTC)", "Inputs → Outputs", "Time", "Tx Hash"].map((h) => (
+                    {["Size", "Amount (BTC)", "Inputs → Outputs", "Block", "Time", "Tx Hash"].map((h) => (
                       <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", whiteSpace: "nowrap" }}>
                         {h}
                       </th>
@@ -151,6 +152,9 @@ export default function WhaleTracker() {
                           {tx.inputCount} → {tx.outputCount}
                         </td>
                         <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                          #{tx.blockHeight.toLocaleString()}
+                        </td>
+                        <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
                           {timeAgo(tx.time)}
                         </td>
                         <td style={{ padding: "13px 18px" }}>
@@ -172,9 +176,15 @@ export default function WhaleTracker() {
           </div>
 
           <p style={{ marginTop: 20, fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-            Unconfirmed mempool data from Blockchain.com · Refreshed every 2 min · Transactions ≥ 50 BTC · Not financial advice.
+            Confirmed block data from Mempool.space · Refreshed every 2 min · Transactions ≥ 10 BTC · Not financial advice.
           </p>
         </>
+      )}
+
+      {!loading && !error && txs.length === 0 && (
+        <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "60px 32px", textAlign: "center", color: "var(--muted)" }}>
+          No transactions ≥ 10 BTC found in the last 5 blocks. Try refreshing.
+        </div>
       )}
 
       {loading && (
