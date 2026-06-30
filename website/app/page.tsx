@@ -52,6 +52,36 @@ const tools = [
       "Track your crypto holdings, cost basis, and P&L. Add assets, see live prices, and visualise your allocation — all stored locally in your browser.",
     features: ["Live prices · P&L · ROI", "Allocation donut chart", "BTC · ETH · SOL · XRP · BNB +more"],
   },
+  {
+    href: "/tools/onchain",
+    icon: "🔗",
+    label: "On-Chain Analytics",
+    tag: "Coming Soon",
+    tagColor: "var(--muted)",
+    description:
+      "Dive into the raw signals that move markets — exchange inflows/outflows, MVRV Z-score, active addresses, and miner revenue trends in one dashboard.",
+    features: ["Exchange inflow/outflow", "MVRV Z-score · NVT ratio", "Active addresses · Miner revenue"],
+  },
+  {
+    href: "/tools/altcoin-season",
+    icon: "🔄",
+    label: "Altcoin Season Index",
+    tag: "Coming Soon",
+    tagColor: "var(--muted)",
+    description:
+      "Know when to rotate from Bitcoin into altcoins. Track which assets are outperforming BTC and spot early signs of an altcoin season before it peaks.",
+    features: ["Altcoin season score 0–100", "BTC dominance trend", "Top 50 altcoin performance vs BTC"],
+  },
+  {
+    href: "/tools/liquidation-map",
+    icon: "⚡",
+    label: "Liquidation Heatmap",
+    tag: "Coming Soon",
+    tagColor: "var(--muted)",
+    description:
+      "See where leveraged positions are clustered. Identify price levels where mass liquidations are likely — and use them as high-probability entry or exit zones.",
+    features: ["Long & short liquidation levels", "Cross-exchange leverage data", "BTC · ETH · SOL coverage"],
+  },
 ];
 
 const stats = [
