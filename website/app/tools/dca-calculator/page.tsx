@@ -2,14 +2,14 @@
 
 import { useState, useCallback } from "react";
 
-type Asset = "bitcoin" | "ethereum" | "solana" | "ripple";
+type Asset = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "XRPUSDT";
 type Frequency = "weekly" | "biweekly" | "monthly";
 
 const ASSETS: { id: Asset; label: string; symbol: string }[] = [
-  { id: "bitcoin", label: "Bitcoin", symbol: "BTC" },
-  { id: "ethereum", label: "Ethereum", symbol: "ETH" },
-  { id: "solana", label: "Solana", symbol: "SOL" },
-  { id: "ripple", label: "XRP", symbol: "XRP" },
+  { id: "BTCUSDT", label: "Bitcoin", symbol: "BTC" },
+  { id: "ETHUSDT", label: "Ethereum", symbol: "ETH" },
+  { id: "SOLUSDT", label: "Solana", symbol: "SOL" },
+  { id: "XRPUSDT", label: "XRP", symbol: "XRP" },
 ];
 
 const FREQ_DAYS: Record<Frequency, number> = {
@@ -40,7 +40,7 @@ function fmtUsd(n: number) {
 }
 
 export default function DCACalculator() {
-  const [asset, setAsset] = useState<Asset>("bitcoin");
+  const [asset, setAsset] = useState<Asset>("BTCUSDT");
   const [amount, setAmount] = useState("100");
   const [frequency, setFrequency] = useState<Frequency>("weekly");
   const [startDate, setStartDate] = useState("2021-01-01");
@@ -70,12 +70,15 @@ export default function DCACalculator() {
     setResult(null);
 
     try {
-      const days = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      const url = `https://api.coingecko.com/api/v3/coins/${asset}/market_chart?vs_currency=usd&days=${days}&interval=daily`;
+      // Binance klines: 1-day candles, open time + close price (index 4)
+      const startMs = start.getTime();
+      const endMs = now.getTime();
+      const url = `https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1d&startTime=${startMs}&endTime=${endMs}&limit=1000`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error("CoinGecko rate limit — please wait a moment and try again.");
-      const data = await res.json();
-      const prices: [number, number][] = data.prices; // [timestamp, price]
+      if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
+      const raw: string[][] = await res.json();
+      // Each kline: [openTime, open, high, low, close, ...]
+      const prices: [number, number][] = raw.map((k) => [Number(k[0]), parseFloat(k[4])]);
 
       const intervalDays = FREQ_DAYS[frequency];
       let totalCoins = 0;
@@ -354,7 +357,7 @@ export default function DCACalculator() {
               </div>
 
               <p style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-                Prices from CoinGecko · Past performance is not indicative of future results.
+                Prices from Binance · Past performance is not indicative of future results.
               </p>
             </div>
           )}
