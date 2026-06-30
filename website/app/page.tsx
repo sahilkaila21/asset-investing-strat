@@ -46,11 +46,11 @@ const tools = [
     href: "/tools/portfolio",
     icon: "💼",
     label: "Portfolio Tracker",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
+    tag: "Live",
+    tagColor: "var(--green)",
     description:
-      "Track your holdings, cost basis, and P&L across assets. See your portfolio's current risk exposure based on live signals.",
-    features: ["Multi-asset holdings tracking", "Cost basis & P&L", "Live risk exposure overlay"],
+      "Track your crypto holdings, cost basis, and P&L. Add assets, see live prices, and visualise your allocation — all stored locally in your browser.",
+    features: ["Live prices · P&L · ROI", "Allocation donut chart", "BTC · ETH · SOL · XRP · BNB +more"],
   },
 ];
 
