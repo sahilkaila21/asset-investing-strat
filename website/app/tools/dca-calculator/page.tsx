@@ -70,7 +70,6 @@ export default function DCACalculator() {
     setResult(null);
 
     try {
-      // Binance klines: 1-day candles, open time + close price (index 4)
       const startMs = start.getTime();
       const endMs = now.getTime();
       const url = `/api/prices?coin=${asset}&startTime=${startMs}&endTime=${endMs}`;
@@ -78,15 +77,40 @@ export default function DCACalculator() {
       if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
       const prices: [number, number][] = await res.json();
 
-      const intervalDays = FREQ_DAYS[frequency];
+      if (!prices.length) throw new Error("No price data returned for this date range.");
+
+      // Build a map of day-key → close price for fast lookup
+      const MS_PER_DAY = 86_400_000;
+      const priceMap = new Map<number, number>(
+        prices.map(([ts, price]) => [Math.floor(ts / MS_PER_DAY), price])
+      );
+      const sortedDays = [...priceMap.keys()].sort((a, b) => a - b);
+
+      function closestPrice(targetDayKey: number): number {
+        if (priceMap.has(targetDayKey)) return priceMap.get(targetDayKey)!;
+        // Find nearest day with data
+        let best = sortedDays[0];
+        let bestDiff = Math.abs(best - targetDayKey);
+        for (const d of sortedDays) {
+          const diff = Math.abs(d - targetDayKey);
+          if (diff < bestDiff) { best = d; bestDiff = diff; }
+          if (d > targetDayKey) break;
+        }
+        return priceMap.get(best)!;
+      }
+
+      const intervalMs = FREQ_DAYS[frequency] * MS_PER_DAY;
       let totalCoins = 0;
       let totalInvested = 0;
       let purchases = 0;
       let bestPurchasePrice = Infinity;
       let worstPurchasePrice = 0;
 
-      for (let i = 0; i < prices.length; i += intervalDays) {
-        const price = prices[i][1];
+      // Iterate by actual date so interval is always correct regardless of data gaps
+      for (let ts = startMs; ts <= endMs; ts += intervalMs) {
+        const dayKey = Math.floor(ts / MS_PER_DAY);
+        const price = closestPrice(dayKey);
+        if (!price) continue;
         totalCoins += investAmt / price;
         totalInvested += investAmt;
         purchases++;
@@ -355,7 +379,7 @@ export default function DCACalculator() {
               </div>
 
               <p style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-                Prices from Binance · Past performance is not indicative of future results.
+                Prices from Kraken · Past performance is not indicative of future results.
               </p>
             </div>
           )}
