@@ -8,14 +8,14 @@ type Widget = {
 
 const widgets: Widget[] = [
   {
-    symbol: "ECONOMICS:USINTR",
+    symbol: "FRED:FEDFUNDS",
     title: "Fed Funds Rate",
     description: "US Federal Reserve interest rate — the primary lever for monetary tightening and easing.",
   },
   {
-    symbol: "ECONOMICS:USIRYY",
-    title: "CPI Inflation (YoY)",
-    description: "US Consumer Price Index year-over-year change — the key inflation metric the Fed targets.",
+    symbol: "TVC:US10Y",
+    title: "10Y Treasury Yield",
+    description: "US 10-year bond yield — a proxy for inflation expectations and the risk-free rate that competes with crypto.",
   },
   {
     symbol: "TVC:DXY",
