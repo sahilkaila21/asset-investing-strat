@@ -73,7 +73,7 @@ export default function DCACalculator() {
       // Binance klines: 1-day candles, open time + close price (index 4)
       const startMs = start.getTime();
       const endMs = now.getTime();
-      const url = `https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1d&startTime=${startMs}&endTime=${endMs}&limit=1000`;
+      const url = `/api/prices?symbol=${asset}&startTime=${startMs}&endTime=${endMs}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
       const raw: string[][] = await res.json();
