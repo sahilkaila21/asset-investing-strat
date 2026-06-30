@@ -55,6 +55,9 @@ st.markdown("""
     [data-testid="stTabs"] button[aria-selected="true"] { color: #e8eaf0 !important; border-bottom-color: #4f7cff !important; }
     hr { border-color: #2a2f3e !important; }
     #MainMenu, footer { visibility: hidden; }
+    header[data-testid="stHeader"] { visibility: hidden; height: 0; }
+    .stDeployButton { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
     details summary { color: #8b92a5 !important; font-size: 0.78rem; }
 </style>
 """, unsafe_allow_html=True)

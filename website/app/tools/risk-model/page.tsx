@@ -3,7 +3,8 @@ export const metadata = {
   description: "13-factor crypto risk model with weekly buy/sell signals for BTC, ETH, SOL and more.",
 };
 
-const STREAMLIT_URL = "https://sahilkaila21-asset-investing-strat-streamlit-app.streamlit.app/?embedded=true";
+const STREAMLIT_BASE = "https://sahilkaila21-asset-investing-strat-streamlit-app.streamlit.app";
+const STREAMLIT_URL = `${STREAMLIT_BASE}?embed=true&embed_options=hide_toolbar,hide_footer,hide_colored_line`;
 
 export default function RiskModelPage() {
   return (
@@ -40,7 +41,7 @@ export default function RiskModelPage() {
           </span>
         </div>
         <a
-          href={STREAMLIT_URL.replace("?embedded=true", "")}
+          href={STREAMLIT_BASE}
           target="_blank"
           rel="noopener noreferrer"
           style={{
