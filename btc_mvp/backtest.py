@@ -177,7 +177,7 @@ def run_backtest(
     df["strategy_equity"] = df["strategy_portfolio"] / starting_cash
     df["buy_hold_equity"] = df["buy_hold_portfolio"] / starting_cash
 
-    return df.dropna()
+    return df.dropna(subset=["close", "risk_score", "strategy_portfolio", "buy_hold_portfolio"])
 
 
 def print_summary(results: pd.DataFrame) -> None:
