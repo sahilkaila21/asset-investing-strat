@@ -344,7 +344,10 @@ with tab2:
                    annotation_text=f"Sell > {sell_start}", annotation_font_color=RED, annotation_position="right")
     vline(fig2)
     fig2.update_layout(**base_layout("Risk Score (Weekly)", "Risk (0–10)"))
-    fig2.update_yaxes(range=[0, 10])
+    _pad = 0.5
+    _risk_min = max(0, chart["risk_score"].min() - _pad)
+    _risk_max = min(10, chart["risk_score"].max() + _pad)
+    fig2.update_yaxes(range=[_risk_min, _risk_max])
     st.plotly_chart(fig2, use_container_width=True)
 
     factor_rows = [
