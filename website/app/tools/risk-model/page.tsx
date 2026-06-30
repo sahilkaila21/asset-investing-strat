@@ -4,12 +4,13 @@ export const metadata = {
 };
 
 const STREAMLIT_BASE = "https://asset-investing-strat.streamlit.app";
-const STREAMLIT_URL = `${STREAMLIT_BASE}?embed=true&embed_options=hide_toolbar,hide_footer,hide_colored_line`;
+const STREAMLIT_URL = `${STREAMLIT_BASE}?embed=true&embed_options=hide_toolbar&embed_options=hide_footer&embed_options=hide_colored_line`;
 
 export default function RiskModelPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 60px)" }}>
-      {/* Slim header bar */}
+
+      {/* Tool header bar */}
       <div
         style={{
           padding: "10px 24px",
@@ -48,27 +49,42 @@ export default function RiskModelPage() {
             fontSize: "0.8rem",
             color: "var(--muted)",
             textDecoration: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
           }}
         >
           Open full screen ↗
         </a>
       </div>
 
-      {/* Streamlit iframe */}
-      <iframe
-        src={STREAMLIT_URL}
-        style={{
-          flex: 1,
-          width: "100%",
-          border: "none",
-          backgroundColor: "#0f1117",
-        }}
-        title="Crypto Risk Model"
-        allow="fullscreen"
-      />
+      {/* iframe wrapper — overlay covers the Streamlit branding at the bottom */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <iframe
+          src={STREAMLIT_URL}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "calc(100% + 50px)", /* extend past container so footer is clipped */
+            border: "none",
+            backgroundColor: "#0f1117",
+          }}
+          title="Crypto Risk Model"
+          allow="fullscreen"
+        />
+        {/* Mask strip that covers the Streamlit footer */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 50,
+            backgroundColor: "#0f1117",
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        />
+      </div>
     </div>
   );
 }
