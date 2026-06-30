@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 type Widget = {
   symbol: string;
   title: string;
@@ -31,43 +29,24 @@ const widgets: Widget[] = [
   },
 ];
 
-function TradingViewChart({ symbol, id }: { symbol: string; id: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/tv.js";
-    script.async = true;
-    script.onload = () => {
-      if (typeof (window as any).TradingView === "undefined") return;
-      new (window as any).TradingView.widget({
-        autosize: true,
-        symbol,
-        interval: "M",
-        timezone: "Etc/UTC",
-        theme: "dark",
-        style: "3",
-        locale: "en",
-        toolbar_bg: "#161b27",
-        enable_publishing: false,
-        hide_top_toolbar: false,
-        hide_legend: false,
-        save_image: false,
-        container_id: id,
-        backgroundColor: "#0f1117",
-        gridColor: "rgba(42,47,62,0.5)",
-        hide_side_toolbar: true,
-        allow_symbol_change: false,
-      });
-    };
-    document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [symbol, id]);
-
-  return <div id={id} ref={containerRef} style={{ height: "100%", width: "100%" }} />;
+function buildSrc(symbol: string) {
+  const p = new URLSearchParams({
+    symbol,
+    interval: "M",
+    theme: "dark",
+    style: "3",
+    locale: "en",
+    toolbar_bg: "#161b27",
+    backgroundColor: "rgba(15,17,23,1)",
+    gridColor: "rgba(42,47,62,0.5)",
+    hide_top_toolbar: "false",
+    hide_legend: "false",
+    save_image: "false",
+    allow_symbol_change: "false",
+    calendar: "false",
+    hide_volume: "true",
+  });
+  return `https://www.tradingview.com/widgetembed/?${p.toString()}`;
 }
 
 export default function MacroDashboard() {
@@ -111,7 +90,7 @@ export default function MacroDashboard() {
           gap: 24,
         }}
       >
-        {widgets.map((w, i) => (
+        {widgets.map((w) => (
           <div
             key={w.symbol}
             style={{
@@ -126,7 +105,14 @@ export default function MacroDashboard() {
               <p style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>{w.description}</p>
             </div>
             <div style={{ height: 300, borderTop: "1px solid var(--border)" }}>
-              <TradingViewChart symbol={w.symbol} id={`tv-widget-${i}`} />
+              <iframe
+                src={buildSrc(w.symbol)}
+                style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+                allowTransparency={true}
+                frameBorder="0"
+                scrolling="no"
+                allow="clipboard-write"
+              />
             </div>
           </div>
         ))}
