@@ -65,8 +65,9 @@ st.markdown("""
 def get_price_data(ticker: str) -> pd.DataFrame:
     return load_asset_data(ticker)
 
-@st.cache_data(ttl=14400, show_spinner=False)
-def get_external_data(ticker: str) -> dict:
+@st.cache_data(ttl=14400, show_spinner=False, hash_funcs={})
+def get_external_data(ticker: str, _version: int = 3) -> dict:
+    """_version bump forces cache invalidation when fetch_all schema changes."""
     return fetch_all(ticker)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -142,16 +143,22 @@ with st.spinner(f"Loading {asset_label} data…"):
 with st.spinner("Fetching on-chain, market & macro data…"):
     external = get_external_data(ticker)
 
+import pandas as _pd
+
+def _has_data(key: str) -> bool:
+    val = external.get(key, _pd.Series(dtype=float))
+    return not (val.empty if hasattr(val, "empty") else True)
+
 data_status = {
-    "Fear & Greed":   not external["fear_greed"].empty,
-    "Funding Rate":   not external["funding_rate"].empty,
-    "MVRV":           not external["mvrv"].empty,
-    "Network Health": not external["network_health"].empty,
-    "Puell":          not external["puell"].empty,
-    "BTC Dominance":  not external["btc_dominance"].empty,
-    "Interest Rate":  not external["interest_rate"].empty,
-    "CPI":            not external["cpi"].empty,
-    "DXY":            not external["dxy"].empty,
+    "Fear & Greed":   _has_data("fear_greed"),
+    "Funding Rate":   _has_data("funding_rate"),
+    "MVRV":           _has_data("mvrv"),
+    "Network Health": _has_data("network_health"),
+    "Puell":          _has_data("puell"),
+    "BTC Dominance":  _has_data("btc_dominance"),
+    "Interest Rate":  _has_data("interest_rate"),
+    "CPI":            _has_data("cpi"),
+    "DXY":            _has_data("dxy"),
 }
 
 with st.spinner("Running risk model…"):
