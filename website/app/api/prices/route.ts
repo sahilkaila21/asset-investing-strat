@@ -34,11 +34,14 @@ export async function GET(request: NextRequest) {
     const res = await fetch(url, { next: { revalidate: 3600 } });
 
     if (!res.ok) {
-      return NextResponse.json({ error: `CryptoCompare error ${res.status}` }, { status: 502 });
+      const body = await res.text().catch(() => "");
+      console.error("CryptoCompare HTTP error", res.status, body);
+      return NextResponse.json({ error: `CryptoCompare ${res.status}: ${body.slice(0, 200)}` }, { status: 502 });
     }
 
     const json = await res.json();
     if (json.Response !== "Success") {
+      console.error("CryptoCompare response error", json);
       return NextResponse.json({ error: json.Message ?? "CryptoCompare error" }, { status: 502 });
     }
 

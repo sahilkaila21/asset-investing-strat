@@ -74,7 +74,10 @@ export default function DCACalculator() {
       const endMs = now.getTime();
       const url = `/api/prices?coin=${asset}&startTime=${startMs}&endTime=${endMs}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status} — failed to fetch price data.`);
+      }
       const prices: [number, number][] = await res.json();
 
       if (!prices.length) throw new Error("No price data returned for this date range.");
