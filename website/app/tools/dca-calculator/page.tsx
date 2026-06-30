@@ -2,14 +2,14 @@
 
 import { useState, useCallback } from "react";
 
-type Asset = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "XRPUSDT";
+type Asset = "BTC" | "ETH" | "SOL" | "XRP";
 type Frequency = "weekly" | "biweekly" | "monthly";
 
 const ASSETS: { id: Asset; label: string; symbol: string }[] = [
-  { id: "BTCUSDT", label: "Bitcoin", symbol: "BTC" },
-  { id: "ETHUSDT", label: "Ethereum", symbol: "ETH" },
-  { id: "SOLUSDT", label: "Solana", symbol: "SOL" },
-  { id: "XRPUSDT", label: "XRP", symbol: "XRP" },
+  { id: "BTC", label: "Bitcoin", symbol: "BTC" },
+  { id: "ETH", label: "Ethereum", symbol: "ETH" },
+  { id: "SOL", label: "Solana", symbol: "SOL" },
+  { id: "XRP", label: "XRP", symbol: "XRP" },
 ];
 
 const FREQ_DAYS: Record<Frequency, number> = {
@@ -40,7 +40,7 @@ function fmtUsd(n: number) {
 }
 
 export default function DCACalculator() {
-  const [asset, setAsset] = useState<Asset>("BTCUSDT");
+  const [asset, setAsset] = useState<Asset>("BTC");
   const [amount, setAmount] = useState("100");
   const [frequency, setFrequency] = useState<Frequency>("weekly");
   const [startDate, setStartDate] = useState("2021-01-01");
@@ -73,7 +73,7 @@ export default function DCACalculator() {
       // Binance klines: 1-day candles, open time + close price (index 4)
       const startMs = start.getTime();
       const endMs = now.getTime();
-      const url = `/api/prices?symbol=${asset}&startTime=${startMs}&endTime=${endMs}`;
+      const url = `/api/prices?coin=${asset}&startTime=${startMs}&endTime=${endMs}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
       const raw: string[][] = await res.json();
