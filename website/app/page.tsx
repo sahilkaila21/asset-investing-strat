@@ -26,21 +26,21 @@ const tools = [
     href: "/tools/macro",
     icon: "🌍",
     label: "Macro Dashboard",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
+    tag: "Live",
+    tagColor: "var(--green)",
     description:
       "Track the macro forces that drive crypto markets — interest rates, inflation, dollar strength, and global liquidity in one view.",
-    features: ["Fed Funds Rate & CPI trends", "DXY & global liquidity (M2)", "Rate hike cycle positioning"],
+    features: ["Fed Funds Rate & CPI trends", "DXY & dollar strength", "Bitcoin price context"],
   },
   {
     href: "/tools/dca-calculator",
     icon: "🧮",
     label: "DCA Calculator",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
+    tag: "Live",
+    tagColor: "var(--green)",
     description:
-      "Simulate how risk-managed DCA performs vs flat DCA across different market cycles. Adjust parameters and see projected outcomes.",
-    features: ["Risk-adjusted vs flat DCA", "Custom entry amounts & dates", "Portfolio growth projection"],
+      "See how a recurring investment would have performed. Pick an asset, amount, and start date — real historical prices, instant results.",
+    features: ["BTC · ETH · SOL · XRP", "Weekly / biweekly / monthly", "Avg cost, ROI, P&L"],
   },
   {
     href: "/tools/portfolio",

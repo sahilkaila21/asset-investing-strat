@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import AuthButton from "@/components/AuthButton";
 
 const tools = [
   { href: "/tools/risk-model",      label: "Risk Model" },
@@ -63,20 +64,7 @@ export default function Navbar() {
 
           {/* CTA */}
           <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-            <Link
-              href="/tools/risk-model"
-              style={{
-                padding: "7px 16px",
-                backgroundColor: "var(--blue)",
-                color: "#fff",
-                borderRadius: 7,
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
-              Launch App
-            </Link>
+            <AuthButton />
 
             {/* Mobile hamburger */}
             <button
