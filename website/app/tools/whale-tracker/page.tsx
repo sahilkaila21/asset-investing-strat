@@ -4,20 +4,15 @@ import { useEffect, useState } from "react";
 
 type WhaleTx = {
   hash: string;
-  time: string;
-  input_total: number;       // satoshis
-  output_total: number;
-  input_total_usd: number;
-  output_total_usd: number;
-  input_count: number;
-  output_count: number;
-  fee_usd: number;
+  time: number;        // unix seconds
+  inputCount: number;
+  outputCount: number;
+  outputSat: number;
+  btc: number;
 };
 
-const SAT = 100_000_000;
-
-function fmtBtc(sat: number) {
-  return (sat / SAT).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtBtc(btc: number) {
+  return btc.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtUsd(n: number) {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
@@ -25,10 +20,10 @@ function fmtUsd(n: number) {
   if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n.toFixed(0)}`;
 }
-function timeAgo(dateStr: string) {
-  const diff = Math.floor((Date.now() - new Date(dateStr + " UTC").getTime()) / 1000);
-  if (diff < 60)   return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+function timeAgo(unixSec: number) {
+  const diff = Math.floor(Date.now() / 1000 - unixSec);
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
@@ -66,8 +61,7 @@ export default function WhaleTracker() {
 
   useEffect(() => { load(); }, []);
 
-  const totalBtc = txs.reduce((s, t) => s + t.output_total / SAT, 0);
-  const totalUsd = txs.reduce((s, t) => s + t.output_total_usd, 0);
+  const totalBtc = txs.reduce((s, t) => s + t.btc, 0);
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
@@ -112,9 +106,9 @@ export default function WhaleTracker() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
             {[
               { label: "Transactions shown", value: txs.length.toString() },
-              { label: "Total BTC moved", value: `${fmtBtc(totalBtc * SAT)} BTC` },
-              { label: "Total USD value", value: fmtUsd(totalUsd) },
-              { label: "Threshold", value: "≥ 100 BTC" },
+              { label: "Total BTC (unconfirmed)", value: `${fmtBtc(totalBtc)} BTC` },
+              { label: "Source", value: "Mempool" },
+              { label: "Threshold", value: "≥ 50 BTC" },
             ].map((s) => (
               <div key={s.label} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <p style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</p>
@@ -129,7 +123,7 @@ export default function WhaleTracker() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Size", "Amount (BTC)", "Value (USD)", "Inputs → Outputs", "Fee", "Time", "Tx Hash"].map((h) => (
+                    {["Size", "Amount (BTC)", "Inputs → Outputs", "Time", "Tx Hash"].map((h) => (
                       <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", whiteSpace: "nowrap" }}>
                         {h}
                       </th>
@@ -138,8 +132,7 @@ export default function WhaleTracker() {
                 </thead>
                 <tbody>
                   {txs.map((tx) => {
-                    const btc = tx.output_total / SAT;
-                    const size = sizeLabel(btc);
+                    const size = sizeLabel(tx.btc);
                     return (
                       <tr key={tx.hash} style={{ borderTop: "1px solid var(--border)" }}>
                         <td style={{ padding: "13px 18px" }}>
@@ -152,16 +145,10 @@ export default function WhaleTracker() {
                           </span>
                         </td>
                         <td style={{ padding: "13px 18px", fontWeight: 700, fontSize: "0.9rem" }}>
-                          {fmtBtc(tx.output_total)}
-                        </td>
-                        <td style={{ padding: "13px 18px", fontWeight: 600, color: "var(--green)", fontSize: "0.9rem" }}>
-                          {fmtUsd(tx.output_total_usd)}
+                          {fmtBtc(tx.btc)} BTC
                         </td>
                         <td style={{ padding: "13px 18px", fontSize: "0.85rem", color: "var(--muted)" }}>
-                          {tx.input_count} → {tx.output_count}
-                        </td>
-                        <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {fmtUsd(tx.fee_usd)}
+                          {tx.inputCount} → {tx.outputCount}
                         </td>
                         <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
                           {timeAgo(tx.time)}
@@ -185,7 +172,7 @@ export default function WhaleTracker() {
           </div>
 
           <p style={{ marginTop: 20, fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-            Data from Blockchair · Cached 10 min · Transactions ≥ 100 BTC · Not financial advice.
+            Unconfirmed mempool data from Blockchain.com · Refreshed every 2 min · Transactions ≥ 50 BTC · Not financial advice.
           </p>
         </>
       )}
