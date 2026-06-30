@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CG_IDS: Record<string, string> = {
-  BTC: "bitcoin",
-  ETH: "ethereum",
-  SOL: "solana",
-  XRP: "ripple",
+const YF_TICKERS: Record<string, string> = {
+  BTC: "BTC-USD",
+  ETH: "ETH-USD",
+  SOL: "SOL-USD",
+  XRP: "XRP-USD",
 };
 
 export async function GET(request: NextRequest) {
@@ -17,31 +17,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 });
   }
 
-  const id = CG_IDS[coin];
-  if (!id) {
+  const ticker = YF_TICKERS[coin];
+  if (!ticker) {
     return NextResponse.json({ error: "Unsupported coin" }, { status: 400 });
   }
 
-  const from = Math.floor(startTime / 1000);
-  const to = Math.floor(endTime / 1000);
+  const period1 = Math.floor(startTime / 1000);
+  const period2 = Math.floor(endTime / 1000);
 
-  // CoinGecko market_chart/range: returns daily candles for ranges >90 days, no key needed
-  const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d`;
 
   const res = await fetch(url, {
-    headers: { Accept: "application/json" },
-    next: { revalidate: 3600 }, // cache 1 hour on Vercel
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json",
+    },
+    next: { revalidate: 3600 },
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("CoinGecko error", res.status, body);
+    console.error("Yahoo Finance error", res.status, body.slice(0, 300));
     return NextResponse.json({ error: `Price API error ${res.status}` }, { status: 502 });
   }
 
   const json = await res.json();
-  // CoinGecko returns { prices: [[timestamp_ms, price], ...] }
-  const prices: [number, number][] = json.prices ?? [];
+  const result = json?.chart?.result?.[0];
+  if (!result) {
+    return NextResponse.json({ error: "No data returned" }, { status: 502 });
+  }
+
+  const timestamps: number[] = result.timestamp ?? [];
+  const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+
+  // Return [timestamp_ms, close_price], skip any null closes
+  const prices: [number, number][] = timestamps
+    .map((ts, i) => [ts * 1000, closes[i]] as [number, number])
+    .filter(([, price]) => price != null && !isNaN(price));
 
   return NextResponse.json(prices);
 }
