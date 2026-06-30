@@ -5,14 +5,22 @@ import time
 import pandas as pd
 import yfinance as yf
 
+SUPPORTED_ASSETS = {
+    "Bitcoin (BTC)": "BTC-USD",
+    "Ethereum (ETH)": "ETH-USD",
+    "Solana (SOL)": "SOL-USD",
+    "BNB": "BNB-USD",
+    "XRP": "XRP-USD",
+}
 
-def load_btc_data(start: str = "2013-01-01", retries: int = 3) -> pd.DataFrame:
+
+def load_asset_data(ticker: str = "BTC-USD", start: str = "2013-01-01", retries: int = 3) -> pd.DataFrame:
     last_error: Exception | None = None
 
     for attempt in range(retries):
         try:
             data = yf.download(
-                "BTC-USD",
+                ticker,
                 start=start,
                 auto_adjust=True,
                 progress=False,
@@ -20,7 +28,7 @@ def load_btc_data(start: str = "2013-01-01", retries: int = 3) -> pd.DataFrame:
             )
 
             if data.empty:
-                raise RuntimeError("No BTC-USD data returned from Yahoo Finance.")
+                raise RuntimeError(f"No data returned for {ticker} from Yahoo Finance.")
 
             if isinstance(data.columns, pd.MultiIndex):
                 data.columns = data.columns.get_level_values(0)
@@ -40,5 +48,9 @@ def load_btc_data(start: str = "2013-01-01", retries: int = 3) -> pd.DataFrame:
                 time.sleep(2 ** attempt)
 
     raise RuntimeError(
-        f"Failed to load BTC-USD data after {retries} attempts. Last error: {last_error}"
+        f"Failed to load {ticker} data after {retries} attempts. Last error: {last_error}"
     )
+
+
+def load_btc_data(start: str = "2013-01-01") -> pd.DataFrame:
+    return load_asset_data("BTC-USD", start=start)

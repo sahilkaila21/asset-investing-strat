@@ -7,36 +7,114 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "btc_mvp"))
 
 import streamlit as st
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 
-from data import load_btc_data
+from data import load_asset_data, SUPPORTED_ASSETS
 from factors import add_factors, add_risk_and_allocation
 from backtest import build_overview, run_backtest, sell_fraction_for_risk, weekly_strategy_amount
-from utils import max_drawdown
+
+# ── Page config ───────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Bitcoin Risk Model",
-    page_icon="₿",
+    page_title="Crypto Risk Model",
+    page_icon="📈",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ── Data (cached so it only re-downloads when the session is fresh) ──────────
+# ── Theme / global CSS ────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=3600, show_spinner="Fetching BTC price data…")
-def get_raw_data() -> pd.DataFrame:
-    return load_btc_data()
+st.markdown("""
+<style>
+    /* Main background */
+    .stApp { background-color: #0f1117; color: #e8eaf0; }
 
+    /* Sidebar */
+    [data-testid="stSidebar"] { background-color: #161b27; border-right: 1px solid #2a2f3e; }
+    [data-testid="stSidebar"] * { color: #c9d1e0 !important; }
 
-# ── Sidebar controls ─────────────────────────────────────────────────────────
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: #1c2133;
+        border: 1px solid #2a2f3e;
+        border-radius: 10px;
+        padding: 16px 20px;
+    }
+    [data-testid="stMetricLabel"] { color: #8b92a5 !important; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    [data-testid="stMetricValue"] { color: #e8eaf0 !important; font-size: 1.4rem; font-weight: 700; }
+
+    /* Signal banner */
+    .signal-banner {
+        border-radius: 10px;
+        padding: 20px 28px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    .signal-buy  { background: #0d2818; border: 1.5px solid #1a7a40; }
+    .signal-sell { background: #2a0d0d; border: 1.5px solid #a02020; }
+    .signal-hold { background: #1a1d28; border: 1.5px solid #3a3f52; }
+
+    .signal-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #8b92a5; margin-bottom: 4px; }
+    .signal-value { font-size: 1.6rem; font-weight: 800; }
+    .signal-divider { width: 1px; height: 48px; background: #2a2f3e; }
+
+    .buy-color  { color: #34d399; }
+    .sell-color { color: #f87171; }
+    .hold-color { color: #94a3b8; }
+    .price-color { color: #e8eaf0; }
+
+    /* Section headers */
+    .section-header {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #5a6175;
+        margin: 20px 0 8px 0;
+    }
+
+    /* Tabs */
+    [data-testid="stTabs"] button {
+        color: #8b92a5 !important;
+        font-weight: 500;
+    }
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        color: #e8eaf0 !important;
+        border-bottom-color: #4f7cff !important;
+    }
+
+    /* Divider */
+    hr { border-color: #2a2f3e !important; }
+
+    /* Dataframe */
+    [data-testid="stDataFrame"] { border: 1px solid #2a2f3e; border-radius: 8px; }
+
+    /* Hide Streamlit branding */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("₿ Risk Model Settings")
+    st.markdown("## 📈 Risk Model")
+    st.markdown('<div class="section-header">Asset</div>', unsafe_allow_html=True)
+    asset_label = st.selectbox(
+        "Select asset",
+        options=list(SUPPORTED_ASSETS.keys()),
+        label_visibility="collapsed",
+    )
+    ticker = SUPPORTED_ASSETS[asset_label]
+    asset_short = asset_label.split("(")[-1].replace(")", "").strip()
 
-    st.subheader("Factor Weights")
-    st.caption("Weights are auto-normalized to sum to 100%.")
+    st.divider()
+    st.markdown('<div class="section-header">Factor Weights</div>', unsafe_allow_html=True)
+    st.caption("Auto-normalized to 100%")
     w_valuation = st.slider("Valuation", 0, 100, 35, step=5)
-    w_trend = st.slider("Trend", 0, 100, 25, step=5)
+    w_trend     = st.slider("Trend",     0, 100, 25, step=5)
     w_structure = st.slider("Structure", 0, 100, 20, step=5)
     w_sentiment = st.slider("Sentiment", 0, 100, 20, step=5)
 
@@ -47,52 +125,43 @@ with st.sidebar:
 
     weights = {
         "valuation": w_valuation / weight_total,
-        "trend": w_trend / weight_total,
+        "trend":     w_trend     / weight_total,
         "structure": w_structure / weight_total,
         "sentiment": w_sentiment / weight_total,
     }
-    st.caption(
-        f"Normalized: Val {weights['valuation']:.0%} · "
-        f"Trend {weights['trend']:.0%} · "
-        f"Str {weights['structure']:.0%} · "
-        f"Sent {weights['sentiment']:.0%}"
-    )
 
     st.divider()
-    st.subheader("Buy Zone")
-    buy_max = st.slider("Max risk to buy (0–10)", 1.0, 5.0, 3.0, step=0.5)
-    st.caption(f"Buys when risk < {buy_max:.1f}")
-    tier = buy_max / 3
-    amt_high = st.number_input(f"Amount when risk < {tier:.1f}", value=600, step=50, min_value=0)
-    amt_mid = st.number_input(f"Amount when risk < {tier * 2:.1f}", value=400, step=50, min_value=0)
-    amt_low = st.number_input(f"Amount when risk < {buy_max:.1f}", value=200, step=50, min_value=0)
-    amounts = (float(amt_high), float(amt_mid), float(amt_low))
+    st.markdown('<div class="section-header">Buy Zone</div>', unsafe_allow_html=True)
+    buy_max  = st.slider("Max risk score to buy", 1.0, 5.0, 3.0, step=0.5)
+    tier     = buy_max / 3
+    amt_high = st.number_input(f"$ when risk < {tier:.1f}",      value=600, step=50, min_value=0)
+    amt_mid  = st.number_input(f"$ when risk < {tier * 2:.1f}",  value=400, step=50, min_value=0)
+    amt_low  = st.number_input(f"$ when risk < {buy_max:.1f}",   value=200, step=50, min_value=0)
+    amounts  = (float(amt_high), float(amt_mid), float(amt_low))
 
     st.divider()
-    st.subheader("Sell Zone")
-    sell_start = st.slider("Risk level to start selling", 4.0, 9.0, 6.0, step=0.5)
-    st.caption(
-        f"Sell tiers: {sell_start:.1f}→10% · {sell_start+0.5:.1f}→20% · "
-        f"{sell_start+1.0:.1f}→25% · {sell_start+1.5:.1f}→30% · "
-        f"{sell_start+2.0:.1f}→40% · {sell_start+2.5:.1f}→50%"
-    )
+    st.markdown('<div class="section-header">Sell Zone</div>', unsafe_allow_html=True)
+    sell_start = st.slider("Risk score to start selling", 4.0, 9.0, 6.0, step=0.5)
 
     st.divider()
-    st.subheader("Backtest Settings")
-    starting_cash = st.number_input("Starting cash ($)", value=30_000, step=1_000, min_value=1_000)
-    display_start = st.date_input("Display start", value=pd.Timestamp("2020-01-01"))
-    deployment_start = st.date_input("Deployment start", value=pd.Timestamp("2026-06-01"))
-    benchmark_dca = st.number_input("Benchmark weekly DCA ($)", value=200, step=50, min_value=0)
-
-    if pd.Timestamp(str(deployment_start)) < pd.Timestamp(str(display_start)):
-        st.warning("Deployment start is before display start — they will be treated as equal.")
+    st.markdown('<div class="section-header">Backtest Settings</div>', unsafe_allow_html=True)
+    starting_cash     = st.number_input("Starting cash ($)", value=30_000, step=1_000, min_value=1_000)
+    display_start     = st.date_input("Display start",     value=pd.Timestamp("2020-01-01"))
+    deployment_start  = st.date_input("Deployment start",  value=pd.Timestamp("2026-06-01"))
+    benchmark_dca     = st.number_input("Benchmark weekly DCA ($)", value=200, step=50, min_value=0)
 
 
-# ── Run the pipeline ─────────────────────────────────────────────────────────
+# ── Data & model ──────────────────────────────────────────────────────────────
 
-raw = get_raw_data()
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_data(ticker: str) -> pd.DataFrame:
+    return load_asset_data(ticker)
 
-with st.spinner("Running model…"):
+
+with st.spinner(f"Loading {asset_label} data…"):
+    raw = get_data(ticker)
+
+with st.spinner("Running risk model…"):
     factors = add_factors(raw)
     signals = add_risk_and_allocation(factors, weights=weights)
     results = run_backtest(
@@ -106,208 +175,240 @@ with st.spinner("Running model…"):
         sell_start=sell_start,
     )
 
-overview = build_overview(results, buy_max=buy_max, amounts=amounts, sell_start=sell_start)
-latest_risk = float(overview["latest_risk"])
-next_buy = float(overview["next_sunday_amount"])
-sell_tier = float(overview["current_sell_fraction"])
+overview        = build_overview(results, buy_max=buy_max, amounts=amounts, sell_start=sell_start)
+latest_risk     = float(overview["latest_risk"])
+next_buy        = float(overview["next_sunday_amount"])
+sell_tier       = float(overview["current_sell_fraction"])
+current_price   = float(results["close"].iloc[-1])
+prev_price      = float(results["close"].iloc[-2])
+price_change    = (current_price - prev_price) / prev_price
 
 
-# ── Header ───────────────────────────────────────────────────────────────────
+# ── Header ────────────────────────────────────────────────────────────────────
 
-st.title("Bitcoin Risk Model")
-st.caption(
-    "A risk-managed DCA strategy that scores Bitcoin market conditions daily "
-    "and adjusts weekly buy/sell signals accordingly."
-)
+st.markdown(f"## {asset_label} — Risk Model")
+st.caption("A risk-managed DCA strategy. Adjust parameters in the sidebar to explore different scenarios.")
 
-# Current signal banner
+# Signal logic
 if latest_risk < buy_max:
-    signal_color = "green"
-    signal_label = f"BUY — ${next_buy:,.0f} this Sunday"
+    signal_class  = "signal-buy"
+    signal_text   = f"BUY — ${next_buy:,.0f} this Sunday"
+    signal_color  = "buy-color"
+    risk_color    = "buy-color"
 elif latest_risk >= sell_start:
-    signal_color = "red"
-    signal_label = f"SELL — {sell_tier:.0%} of BTC holdings"
+    signal_class  = "signal-sell"
+    signal_text   = f"SELL — {sell_tier:.0%} of holdings"
+    signal_color  = "sell-color"
+    risk_color    = "sell-color"
 else:
-    signal_color = "gray"
-    signal_label = "HOLD — no action this week"
+    signal_class  = "signal-hold"
+    signal_text   = "HOLD — no action this week"
+    signal_color  = "hold-color"
+    risk_color    = "hold-color"
 
-st.markdown(
-    f"<div style='background:{'#e6f4ea' if signal_color=='green' else '#fde8e8' if signal_color=='red' else '#f0f0f0'};"
-    f"border-left:5px solid {'#2ca02c' if signal_color=='green' else '#d62728' if signal_color=='red' else '#888'};"
-    f"padding:14px 20px;border-radius:6px;font-size:1.1rem;font-weight:600'>"
-    f"Current Signal: {signal_label} &nbsp;·&nbsp; Risk score: {latest_risk:.2f} / 10"
-    f"</div>",
-    unsafe_allow_html=True,
-)
+price_arrow = "▲" if price_change >= 0 else "▼"
+price_clr   = "#34d399" if price_change >= 0 else "#f87171"
+
+st.markdown(f"""
+<div class="signal-banner {signal_class}">
+    <div>
+        <div class="signal-label">Current Price</div>
+        <div class="signal-value price-color">
+            ${current_price:,.2f}
+            <span style="font-size:1rem;color:{price_clr}">&nbsp;{price_arrow} {abs(price_change):.2%}</span>
+        </div>
+    </div>
+    <div class="signal-divider"></div>
+    <div>
+        <div class="signal-label">Risk Score</div>
+        <div class="signal-value {risk_color}">{latest_risk:.2f} <span style="font-size:1rem;color:#5a6175">/ 10</span></div>
+    </div>
+    <div class="signal-divider"></div>
+    <div>
+        <div class="signal-label">Weekly Signal</div>
+        <div class="signal-value {signal_color}">{signal_text}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Metrics row ───────────────────────────────────────────────────────────────
+
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Strategy Value",    f"${float(overview['strategy_final']):,.0f}")
+c2.metric("Buy & Hold Value",  f"${float(overview['buy_hold_final']):,.0f}")
+c3.metric("Starting Cash",     f"${float(overview['starting_cash']):,.0f}")
+c4.metric("Strategy Max DD",   f"{float(overview['strategy_dd'])*100:.1f}%")
+c5.metric("B&H Max DD",        f"{float(overview['buy_hold_dd'])*100:.1f}%")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Key metrics row ──────────────────────────────────────────────────────────
+# ── Chart data ────────────────────────────────────────────────────────────────
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Strategy Value", f"${float(overview['strategy_final']):,.0f}")
-col2.metric("Buy & Hold Value", f"${float(overview['buy_hold_final']):,.0f}")
-col3.metric("Strategy Max DD", f"{float(overview['strategy_dd'])*100:.1f}%")
-col4.metric("Buy & Hold Max DD", f"{float(overview['buy_hold_dd'])*100:.1f}%")
-col5.metric("Risk / Return Corr", f"{float(overview['risk_future_corr']):.4f}")
+chart = results.resample("W-SUN").agg({
+    "close":                  "last",
+    "buy_hold_portfolio":     "last",
+    "strategy_portfolio":     "last",
+    "risk_score":             "last",
+    "risk_used":              "last",
+    "strategy_dca":           "sum",
+    "strategy_btc_sold":      "sum",
+    "strategy_sell_proceeds": "sum",
+    "strategy_cash":          "last",
+    "strategy_btc_holdings":  "last",
+    "sell_fraction":          "max",
+}).dropna(subset=["close", "risk_score"])
 
-st.divider()
+deploy_ts   = pd.Timestamp(str(deployment_start))
+BLUE        = "#4f7cff"
+GREEN       = "#34d399"
+RED         = "#f87171"
+GRAY        = "#8b92a5"
+GRID_COLOR  = "#1e2336"
+PAPER_BG    = "#0f1117"
+PLOT_BG     = "#131720"
 
-# ── Charts ───────────────────────────────────────────────────────────────────
-
-# Resample to weekly for chart readability
-chart = results.resample("W-SUN").agg(
-    {
-        "close": "last",
-        "buy_hold_portfolio": "last",
-        "strategy_portfolio": "last",
-        "risk_score": "last",
-        "risk_used": "last",
-        "strategy_dca": "sum",
-        "strategy_btc_sold": "sum",
-        "strategy_sell_proceeds": "sum",
-        "strategy_cash": "last",
-        "strategy_btc_holdings": "last",
-        "sell_fraction": "max",
-    }
-).dropna(subset=["close", "risk_score"])
-
-deploy_ts = pd.Timestamp(str(deployment_start))
+def base_layout(title: str, yaxis_title: str, **kwargs) -> dict:
+    return dict(
+        title=dict(text=title, font=dict(color="#e8eaf0", size=14), x=0),
+        paper_bgcolor=PAPER_BG,
+        plot_bgcolor=PLOT_BG,
+        font=dict(color=GRAY, size=12),
+        xaxis=dict(gridcolor=GRID_COLOR, showline=False, zeroline=False),
+        yaxis=dict(gridcolor=GRID_COLOR, showline=False, zeroline=False, title=yaxis_title),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=GRAY), orientation="h", y=1.08),
+        hovermode="x unified",
+        hoverlabel=dict(bgcolor="#1c2133", font_color="#e8eaf0", bordercolor="#2a2f3e"),
+        margin=dict(l=0, r=0, t=48, b=0),
+        height=380,
+        **kwargs,
+    )
 
 tab1, tab2, tab3 = st.tabs(["Portfolio Performance", "Risk Score", "Capital Flow"])
 
-# ── Tab 1: Equity ────────────────────────────────────────────────────────────
+# ── Tab 1: Equity ─────────────────────────────────────────────────────────────
 with tab1:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=chart.index, y=chart["buy_hold_portfolio"],
-        name="Buy & Hold DCA", line=dict(color="#aec7e8"),
-        hovertemplate="%{x|%Y-%m-%d}<br>Buy & Hold: $%{y:,.0f}<extra></extra>",
+        name="Buy & Hold DCA",
+        line=dict(color=GRAY, width=1.5, dash="dot"),
+        hovertemplate="%{x|%b %d %Y}<br>Buy & Hold: $%{y:,.0f}<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
         x=chart.index, y=chart["strategy_portfolio"],
-        name="Risk-Managed DCA", line=dict(color="#1f77b4", width=2.5),
-        hovertemplate="%{x|%Y-%m-%d}<br>Strategy: $%{y:,.0f}<extra></extra>",
+        name="Risk-Managed Strategy",
+        line=dict(color=BLUE, width=2.5),
+        fill="tozeroy",
+        fillcolor="rgba(79,124,255,0.06)",
+        hovertemplate="%{x|%b %d %Y}<br>Strategy: $%{y:,.0f}<extra></extra>",
     ))
     fig.add_vline(
-        x=deploy_ts.timestamp() * 1000, line_dash="dot",
-        line_color="#333", annotation_text="Deployment start",
+        x=deploy_ts.timestamp() * 1000,
+        line_dash="dot", line_color="#3a3f52", line_width=1.5,
+        annotation_text="Live deployment", annotation_font_color=GRAY,
         annotation_position="top right",
     )
-    fig.update_layout(
-        title="Portfolio Value Over Time (Weekly)",
-        yaxis_title="Portfolio Value ($)",
-        yaxis_tickprefix="$",
-        legend=dict(orientation="h", y=1.08),
-        hovermode="x unified",
-        height=420,
-    )
+    fig.update_layout(**base_layout("Portfolio Value (Weekly)", "Value (USD)"))
+    fig.update_yaxes(tickprefix="$")
     st.plotly_chart(fig, use_container_width=True)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Starting Cash", f"${float(overview['starting_cash']):,.0f}")
-    c2.metric("Strategy Invested", f"${float(overview['strategy_invested']):,.0f}")
-    c3.metric("BTC Holdings", f"{float(overview['strategy_btc_holdings']):.6f} BTC")
-    c4.metric("Cash on Hand", f"${float(overview['strategy_cash']):,.0f}")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Strategy Invested",     f"${float(overview['strategy_invested']):,.0f}")
+    m2.metric("Cash on Hand",          f"${float(overview['strategy_cash']):,.0f}")
+    m3.metric(f"{asset_short} Holdings", f"{float(overview['strategy_btc_holdings']):.6f}")
+    m4.metric("Risk / Return Corr",    f"{float(overview['risk_future_corr']):.4f}")
 
 # ── Tab 2: Risk score ─────────────────────────────────────────────────────────
 with tab2:
     fig2 = go.Figure()
 
-    # Shaded zones
-    fig2.add_hrect(y0=0, y1=buy_max, fillcolor="#2ca02c", opacity=0.08, line_width=0, annotation_text="Buy zone", annotation_position="left")
-    fig2.add_hrect(y0=buy_max, y1=sell_start, fillcolor="#7f7f7f", opacity=0.06, line_width=0, annotation_text="Hold zone", annotation_position="left")
-    fig2.add_hrect(y0=sell_start, y1=10, fillcolor="#d62728", opacity=0.08, line_width=0, annotation_text="Sell zone", annotation_position="left")
+    fig2.add_hrect(y0=0,        y1=buy_max,   fillcolor=GREEN, opacity=0.05, line_width=0)
+    fig2.add_hrect(y0=buy_max,  y1=sell_start,fillcolor=GRAY,  opacity=0.03, line_width=0)
+    fig2.add_hrect(y0=sell_start, y1=10,      fillcolor=RED,   opacity=0.05, line_width=0)
 
     fig2.add_trace(go.Scatter(
         x=chart.index, y=chart["risk_score"],
-        name="Risk Score", line=dict(color="#d62728", width=2),
-        hovertemplate="%{x|%Y-%m-%d}<br>Risk: %{y:.2f}<extra></extra>",
+        name="Risk Score",
+        line=dict(color=BLUE, width=2.2),
+        hovertemplate="%{x|%b %d %Y}<br>Risk: %{y:.2f}<extra></extra>",
     ))
 
-    buy_mask = chart["strategy_dca"] > 0
+    buy_mask  = chart["strategy_dca"] > 0
     sell_mask = chart["strategy_btc_sold"] > 0
+
     fig2.add_trace(go.Scatter(
         x=chart.index[buy_mask], y=chart.loc[buy_mask, "risk_score"],
         mode="markers", name="Buy signal",
-        marker=dict(color="#2ca02c", size=7, symbol="circle"),
-        hovertemplate="%{x|%Y-%m-%d}<br>Buy: $%{customdata:,.0f}<extra></extra>",
+        marker=dict(color=GREEN, size=7, symbol="circle", line=dict(color="#0f1117", width=1)),
+        hovertemplate="%{x|%b %d %Y}<br>Buy: $%{customdata:,.0f}<extra></extra>",
         customdata=chart.loc[buy_mask, "strategy_dca"],
     ))
     fig2.add_trace(go.Scatter(
         x=chart.index[sell_mask], y=chart.loc[sell_mask, "risk_score"],
         mode="markers", name="Sell signal",
-        marker=dict(color="#d62728", size=9, symbol="triangle-down"),
-        hovertemplate="%{x|%Y-%m-%d}<br>Sell tier: %{customdata:.0%}<extra></extra>",
+        marker=dict(color=RED, size=9, symbol="triangle-down", line=dict(color="#0f1117", width=1)),
+        hovertemplate="%{x|%b %d %Y}<br>Sell: %{customdata:.0%}<extra></extra>",
         customdata=chart.loc[sell_mask, "sell_fraction"],
     ))
-    fig2.add_hline(y=buy_max, line_dash="dash", line_color="#2ca02c", line_width=1)
-    fig2.add_hline(y=sell_start, line_dash="dash", line_color="#d62728", line_width=1)
-    fig2.add_vline(x=deploy_ts.timestamp() * 1000, line_dash="dot", line_color="#333")
 
-    fig2.update_layout(
-        title="Risk Score Over Time (Weekly)",
-        yaxis_title="Risk Score (0–10)",
-        yaxis=dict(range=[0, 10]),
-        legend=dict(orientation="h", y=1.08),
-        hovermode="x unified",
-        height=420,
-    )
+    fig2.add_hline(y=buy_max,   line_dash="dash", line_color=GREEN, line_width=1,
+                   annotation_text=f"Buy below {buy_max}", annotation_font_color=GREEN, annotation_position="right")
+    fig2.add_hline(y=sell_start, line_dash="dash", line_color=RED,  line_width=1,
+                   annotation_text=f"Sell above {sell_start}", annotation_font_color=RED, annotation_position="right")
+    fig2.add_vline(x=deploy_ts.timestamp() * 1000, line_dash="dot", line_color="#3a3f52", line_width=1.5)
+
+    fig2.update_layout(**base_layout("Risk Score Over Time (Weekly)", "Risk (0–10)"))
+    fig2.update_yaxes(range=[0, 10])
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown("**How the risk score is built**")
-    weight_df = pd.DataFrame(
-        {
-            "Factor": ["Valuation", "Trend", "Structure", "Sentiment"],
-            "Weight": [
-                f"{weights['valuation']:.0%}",
-                f"{weights['trend']:.0%}",
-                f"{weights['structure']:.0%}",
-                f"{weights['sentiment']:.0%}",
-            ],
-            "What it measures": [
-                "Z-score of log price vs 365-day window — high price = high risk",
-                "RSI-14, price vs MA-20, price vs MA-200",
-                "Annualized 30-day volatility — high volatility = high risk",
-                "Z-score of 30-day return — strong recent gains = high risk",
-            ],
-        }
-    )
-    st.dataframe(weight_df, hide_index=True, use_container_width=True)
+    st.markdown('<div class="section-header">How the risk score is built</div>', unsafe_allow_html=True)
+    factor_df = pd.DataFrame({
+        "Factor":       ["Valuation", "Trend", "Structure", "Sentiment"],
+        "Weight":       [f"{weights[k]:.0%}" for k in ["valuation","trend","structure","sentiment"]],
+        "Description":  [
+            "Z-score of log price vs 365-day history — high price = higher risk",
+            "RSI-14, price vs MA-20, price vs MA-200 — strong trend = higher risk",
+            "Annualized 30-day volatility — high volatility = higher risk",
+            "Z-score of 30-day return — strong recent rally = higher risk",
+        ],
+    })
+    st.dataframe(factor_df, hide_index=True, use_container_width=True)
 
 # ── Tab 3: Capital flow ───────────────────────────────────────────────────────
 with tab3:
     fig3 = go.Figure()
     fig3.add_trace(go.Bar(
         x=chart.index, y=chart["strategy_dca"],
-        name="Weekly Buy Amount", marker_color="#2ca02c", opacity=0.6,
-        hovertemplate="%{x|%Y-%m-%d}<br>Bought: $%{y:,.0f}<extra></extra>",
+        name="Weekly Buy",
+        marker_color=GREEN, opacity=0.7,
+        hovertemplate="%{x|%b %d %Y}<br>Bought: $%{y:,.0f}<extra></extra>",
     ))
     fig3.add_trace(go.Bar(
         x=chart.index, y=-chart["strategy_sell_proceeds"],
-        name="Sell Proceeds (inverted)", marker_color="#d62728", opacity=0.6,
-        hovertemplate="%{x|%Y-%m-%d}<br>Sold: $%{customdata:,.0f}<extra></extra>",
+        name="Sell Proceeds",
+        marker_color=RED, opacity=0.7,
+        hovertemplate="%{x|%b %d %Y}<br>Sold: $%{customdata:,.0f}<extra></extra>",
         customdata=chart["strategy_sell_proceeds"],
     ))
     fig3.add_trace(go.Scatter(
         x=chart.index, y=chart["strategy_cash"],
-        name="Cash Position", line=dict(color="#1f77b4", width=2),
+        name="Cash Position",
+        line=dict(color=BLUE, width=2),
         yaxis="y2",
-        hovertemplate="%{x|%Y-%m-%d}<br>Cash: $%{y:,.0f}<extra></extra>",
+        hovertemplate="%{x|%b %d %Y}<br>Cash: $%{y:,.0f}<extra></extra>",
     ))
-    fig3.add_vline(x=deploy_ts.timestamp() * 1000, line_dash="dot", line_color="#333")
-    fig3.update_layout(
-        title="Capital Flow (Weekly)",
-        yaxis_title="Weekly Flow ($)",
-        yaxis2=dict(title="Cash Position ($)", overlaying="y", side="right"),
-        barmode="relative",
-        legend=dict(orientation="h", y=1.08),
-        hovermode="x unified",
-        height=420,
+    fig3.add_vline(x=deploy_ts.timestamp() * 1000, line_dash="dot", line_color="#3a3f52", line_width=1.5)
+    layout = base_layout("Capital Flow (Weekly)", "Weekly Flow ($)")
+    layout["yaxis2"] = dict(
+        title="Cash ($)", overlaying="y", side="right",
+        gridcolor=GRID_COLOR, showline=False, zeroline=False, tickprefix="$",
     )
+    layout["barmode"] = "relative"
+    fig3.update_layout(**layout)
+    fig3.update_yaxes(tickprefix="$", secondary_y=False)
     st.plotly_chart(fig3, use_container_width=True)
 
-# ── Raw data expander ─────────────────────────────────────────────────────────
+# ── Raw data ──────────────────────────────────────────────────────────────────
 
 with st.expander("View raw data (last 30 rows)"):
     display_cols = [
@@ -317,7 +418,11 @@ with st.expander("View raw data (last 30 rows)"):
     ]
     st.dataframe(results[display_cols].tail(30).round(4), use_container_width=True)
 
-st.caption(
-    f"Data via Yahoo Finance · Deployment start: {overview['deployment_start']} · "
-    f"Display start: {overview['display_start']}"
+st.markdown(
+    f"<div style='color:#3a3f52;font-size:0.75rem;margin-top:24px'>"
+    f"Data via Yahoo Finance · {asset_label} · "
+    f"Deployment: {overview['deployment_start']} · "
+    f"Display: {overview['display_start']}"
+    f"</div>",
+    unsafe_allow_html=True,
 )
