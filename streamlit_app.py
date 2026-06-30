@@ -338,10 +338,26 @@ with tab2:
         mode="markers", name="Sell", marker=dict(color=RED, size=9, symbol="triangle-down"),
         customdata=chart.loc[sell_m, "sell_fraction"],
         hovertemplate="%{x|%b %d %Y}<br>Sell: %{customdata:.0%}<extra></extra>"))
-    fig2.add_hline(y=buy_max,    line_dash="dash", line_color=GREEN, line_width=1,
-                   annotation_text=f"Buy < {buy_max}", annotation_font_color=GREEN, annotation_position="right")
-    fig2.add_hline(y=sell_start, line_dash="dash", line_color=RED,   line_width=1,
-                   annotation_text=f"Sell > {sell_start}", annotation_font_color=RED, annotation_position="right")
+    # Buy zone tier lines
+    _t = buy_max / 3
+    for _y, _label in [(_t, f"${int(amt_high)} tier"), (_t * 2, f"${int(amt_mid)} tier"), (buy_max, f"${int(amt_low)} tier / no buy")]:
+        fig2.add_hline(y=_y, line_dash="dot", line_color=GREEN, line_width=0.8,
+                       annotation_text=_label, annotation_font_color=GREEN,
+                       annotation_font_size=10, annotation_position="right")
+
+    # Sell zone tier lines
+    for _y, _label in [
+        (sell_start,       "10% sell"),
+        (sell_start + 0.5, "20% sell"),
+        (sell_start + 1.0, "25% sell"),
+        (sell_start + 1.5, "30% sell"),
+        (sell_start + 2.0, "40% sell"),
+        (sell_start + 2.5, "50% sell"),
+    ]:
+        if _y <= 10:
+            fig2.add_hline(y=_y, line_dash="dot", line_color=RED, line_width=0.8,
+                           annotation_text=_label, annotation_font_color=RED,
+                           annotation_font_size=10, annotation_position="right")
     vline(fig2)
     fig2.update_layout(**base_layout("Risk Score (Weekly)", "Risk (0–10)"))
     _pad = 0.5
