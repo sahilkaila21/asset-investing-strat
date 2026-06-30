@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const COINCAP_IDS: Record<string, string> = {
-  BTC: "bitcoin",
-  ETH: "ethereum",
-  SOL: "solana",
-  XRP: "ripple",
+// CryptoCompare symbols
+const CC_SYMBOLS: Record<string, string> = {
+  BTC: "BTC",
+  ETH: "ETH",
+  SOL: "SOL",
+  XRP: "XRP",
 };
-
-const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -19,48 +18,49 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 });
   }
 
-  const assetId = COINCAP_IDS[coin];
-  if (!assetId) {
+  const sym = CC_SYMBOLS[coin];
+  if (!sym) {
     return NextResponse.json({ error: "Unsupported coin" }, { status: 400 });
   }
 
-  // CoinCap returns all daily candles in a range — fetch year by year to stay within limits
+  // CryptoCompare returns up to 2000 daily candles ending at `toTs` (Unix seconds).
+  // Page backwards from endTime until we've covered startTime.
   const allCandles: [number, number][] = [];
-  let chunkStart = startTime;
+  const startSec = Math.floor(startTime / 1000);
+  let toTs = Math.floor(endTime / 1000);
 
-  while (chunkStart < endTime) {
-    const chunkEnd = Math.min(chunkStart + MS_PER_YEAR, endTime);
-    const url = `https://api.coincap.io/v2/assets/${assetId}/history?interval=d1&start=${chunkStart}&end=${chunkEnd}`;
-
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      next: { revalidate: 3600 },
-    });
+  for (let page = 0; page < 10; page++) {
+    const url = `https://min-api.cryptocompare.com/data/v2/histoday?fsym=${sym}&tsym=USD&limit=2000&toTs=${toTs}`;
+    const res = await fetch(url, { next: { revalidate: 3600 } });
 
     if (!res.ok) {
-      return NextResponse.json({ error: "Upstream error" }, { status: 502 });
+      return NextResponse.json({ error: `CryptoCompare error ${res.status}` }, { status: 502 });
     }
 
     const json = await res.json();
-    const points: { time: number; priceUsd: string }[] = json.data ?? [];
-
-    for (const p of points) {
-      allCandles.push([p.time, parseFloat(p.priceUsd)]);
+    if (json.Response !== "Success") {
+      return NextResponse.json({ error: json.Message ?? "CryptoCompare error" }, { status: 502 });
     }
 
-    chunkStart = chunkEnd + 1;
+    const candles: { time: number; close: number }[] = json.Data.Data;
+
+    // Prepend candles that fall within our range
+    for (const c of candles) {
+      if (c.time >= startSec && c.time <= Math.floor(endTime / 1000)) {
+        allCandles.push([c.time * 1000, c.close]);
+      }
+    }
+
+    // Stop if this page reaches back before our start date
+    const pageStart: number = json.Data.TimeFrom;
+    if (pageStart <= startSec) break;
+
+    // Continue backwards: next page ends just before this page started
+    toTs = pageStart - 1;
   }
 
-  // Deduplicate and sort by timestamp
-  const seen = new Set<number>();
-  const unique = allCandles
-    .filter(([ts]) => {
-      const key = Math.floor(ts / 86_400_000);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => a[0] - b[0]);
+  // Sort ascending
+  allCandles.sort((a, b) => a[0] - b[0]);
 
-  return NextResponse.json(unique);
+  return NextResponse.json(allCandles);
 }
