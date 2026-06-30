@@ -76,9 +76,7 @@ export default function DCACalculator() {
       const url = `/api/prices?coin=${asset}&startTime=${startMs}&endTime=${endMs}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch price data. Please try again.");
-      const raw: string[][] = await res.json();
-      // Each kline: [openTime, open, high, low, close, ...]
-      const prices: [number, number][] = raw.map((k) => [Number(k[0]), parseFloat(k[4])]);
+      const prices: [number, number][] = await res.json();
 
       const intervalDays = FREQ_DAYS[frequency];
       let totalCoins = 0;
