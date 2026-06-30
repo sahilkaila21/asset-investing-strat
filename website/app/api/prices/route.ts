@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// CryptoCompare symbols
-const CC_SYMBOLS: Record<string, string> = {
-  BTC: "BTC",
-  ETH: "ETH",
-  SOL: "SOL",
-  XRP: "XRP",
+const CG_IDS: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  SOL: "solana",
+  XRP: "ripple",
 };
 
 export async function GET(request: NextRequest) {
@@ -18,52 +17,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 });
   }
 
-  const sym = CC_SYMBOLS[coin];
-  if (!sym) {
+  const id = CG_IDS[coin];
+  if (!id) {
     return NextResponse.json({ error: "Unsupported coin" }, { status: 400 });
   }
 
-  // CryptoCompare returns up to 2000 daily candles ending at `toTs` (Unix seconds).
-  // Page backwards from endTime until we've covered startTime.
-  const allCandles: [number, number][] = [];
-  const startSec = Math.floor(startTime / 1000);
-  let toTs = Math.floor(endTime / 1000);
+  const from = Math.floor(startTime / 1000);
+  const to = Math.floor(endTime / 1000);
 
-  for (let page = 0; page < 10; page++) {
-    const url = `https://min-api.cryptocompare.com/data/v2/histoday?fsym=${sym}&tsym=USD&limit=2000&toTs=${toTs}`;
-    const res = await fetch(url, { next: { revalidate: 3600 } });
+  // CoinGecko market_chart/range: returns daily candles for ranges >90 days, no key needed
+  const url = `https://api.coingecko.com/api/v3/coins/${id}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.error("CryptoCompare HTTP error", res.status, body);
-      return NextResponse.json({ error: `CryptoCompare ${res.status}: ${body.slice(0, 200)}` }, { status: 502 });
-    }
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    next: { revalidate: 3600 }, // cache 1 hour on Vercel
+  });
 
-    const json = await res.json();
-    if (json.Response !== "Success") {
-      console.error("CryptoCompare response error", json);
-      return NextResponse.json({ error: json.Message ?? "CryptoCompare error" }, { status: 502 });
-    }
-
-    const candles: { time: number; close: number }[] = json.Data.Data;
-
-    // Prepend candles that fall within our range
-    for (const c of candles) {
-      if (c.time >= startSec && c.time <= Math.floor(endTime / 1000)) {
-        allCandles.push([c.time * 1000, c.close]);
-      }
-    }
-
-    // Stop if this page reaches back before our start date
-    const pageStart: number = json.Data.TimeFrom;
-    if (pageStart <= startSec) break;
-
-    // Continue backwards: next page ends just before this page started
-    toTs = pageStart - 1;
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("CoinGecko error", res.status, body);
+    return NextResponse.json({ error: `Price API error ${res.status}` }, { status: 502 });
   }
 
-  // Sort ascending
-  allCandles.sort((a, b) => a[0] - b[0]);
+  const json = await res.json();
+  // CoinGecko returns { prices: [[timestamp_ms, price], ...] }
+  const prices: [number, number][] = json.prices ?? [];
 
-  return NextResponse.json(allCandles);
+  return NextResponse.json(prices);
 }

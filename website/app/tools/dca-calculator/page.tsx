@@ -382,7 +382,7 @@ export default function DCACalculator() {
               </div>
 
               <p style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-                Prices from CryptoCompare · Past performance is not indicative of future results.
+                Prices from CoinGecko · Past performance is not indicative of future results.
               </p>
             </div>
           )}
