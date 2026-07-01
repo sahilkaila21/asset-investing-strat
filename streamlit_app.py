@@ -65,7 +65,7 @@ st.markdown("""
     .styles_viewerBadge__CvC9N { display: none !important; }
     details summary { color: #8b92a5 !important; font-size: 0.78rem; }
 
-    /* Always show sidebar collapse/expand toggle — embed=true hides it by default */
+    /* Sidebar collapse/expand toggle */
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarCollapsedControl"],
     [data-testid="collapsedControl"] {
@@ -73,59 +73,6 @@ st.markdown("""
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-    }
-
-    /* Make the collapsed sidebar expand handle large and obvious */
-    [data-testid="stSidebarCollapsedControl"],
-    [data-testid="collapsedControl"] {
-        position: fixed !important;
-        left: 0 !important;
-        top: 50% !important;
-        transform: translateY(-50%) !important;
-        width: 28px !important;
-        min-height: 72px !important;
-        height: 72px !important;
-        background: #1e2540 !important;
-        border: 1px solid #3a4060 !important;
-        border-left: none !important;
-        border-radius: 0 8px 8px 0 !important;
-        box-shadow: 3px 0 12px rgba(0,0,0,0.4) !important;
-        cursor: pointer !important;
-        z-index: 9999 !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    /* The chevron/arrow icon inside the collapsed handle */
-    [data-testid="stSidebarCollapsedControl"] svg,
-    [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapsedControl"] button,
-    [data-testid="collapsedControl"] button {
-        color: #c9d1e0 !important;
-        width: 18px !important;
-        height: 18px !important;
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-    }
-
-    /* Expand icon button — make the whole area clickable */
-    [data-testid="stSidebarCollapsedControl"] > *,
-    [data-testid="collapsedControl"] > * {
-        width: 100% !important;
-        height: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        cursor: pointer !important;
-    }
-
-    /* Hover highlight */
-    [data-testid="stSidebarCollapsedControl"]:hover,
-    [data-testid="collapsedControl"]:hover {
-        background: #2a3358 !important;
-        border-color: #4f7cff !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -390,6 +337,13 @@ fr_val  = float(results["funding_rate_raw"].iloc[-1]) * 100
 ir_val  = float(results["interest_rate_raw"].iloc[-1]) if results["interest_rate_raw"].notna().any() else None
 cpi_val = float(results["cpi_raw"].iloc[-1]) if results["cpi_raw"].notna().any() else None
 
+fr_color  = "#f87171" if fr_val > 0.01 else "#34d399" if fr_val < -0.005 else "#e8eaf0"
+cpi_color = "#f87171" if cpi_val and cpi_val > 4 else "#e8eaf0"
+ir_html   = (f"<div class='signal-divider'></div><div><div class='signal-label'>Fed Funds</div>"
+             f"<div class='signal-value' style='color:#e8eaf0'>{ir_val:.2f}%</div></div>") if ir_val is not None else ""
+cpi_html  = (f"<div class='signal-divider'></div><div><div class='signal-label'>CPI YoY</div>"
+             f"<div class='signal-value' style='color:{cpi_color}'>{cpi_val:.1f}%</div></div>") if cpi_val is not None else ""
+
 st.markdown(f"""
 <div class="signal-banner {cls}">
   <div>
@@ -417,10 +371,10 @@ st.markdown(f"""
   <div class="signal-divider"></div>
   <div>
     <div class="signal-label">Funding Rate</div>
-    <div class="signal-value" style="color:{'#f87171' if fr_val > 0.01 else '#34d399' if fr_val < -0.005 else '#e8eaf0'}">{fr_val:.4f}%</div>
+    <div class="signal-value" style="color:{fr_color}">{fr_val:.4f}%</div>
   </div>
-  {"<div class='signal-divider'></div><div><div class='signal-label'>Fed Funds</div><div class='signal-value' style='color:#e8eaf0'>" + f"{ir_val:.2f}%" + "</div></div>" if ir_val is not None else ""}
-  {"<div class='signal-divider'></div><div><div class='signal-label'>CPI YoY</div><div class='signal-value' style='color:{'#f87171' if cpi_val and cpi_val > 4 else '#e8eaf0'}'>" + f"{cpi_val:.1f}%" + "</div></div>" if cpi_val is not None else ""}
+  {ir_html}
+  {cpi_html}
 </div>
 """, unsafe_allow_html=True)
 

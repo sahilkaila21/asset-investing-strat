@@ -4,7 +4,7 @@ export const metadata = {
 };
 
 const STREAMLIT_BASE = "https://asset-investing-strat.streamlit.app";
-const STREAMLIT_URL = `${STREAMLIT_BASE}?embed=true&embed_options=hide_toolbar&embed_options=hide_footer&embed_options=hide_colored_line`;
+const STREAMLIT_URL = `${STREAMLIT_BASE}?embed_options=hide_toolbar&embed_options=hide_footer&embed_options=hide_colored_line`;
 
 export default function RiskModelPage() {
   return (
