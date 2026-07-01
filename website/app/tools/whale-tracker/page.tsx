@@ -34,12 +34,22 @@ function sizeLabel(btc: number) {
   if (btc >= 50)   return { label: "Large",      color: "#facc15" };
   return               { label: "Big Fish",    color: "#fb923c" };
 }
+function getDirection(tx: WhaleTx): { label: string; color: string } {
+  if (tx.inputCount > tx.outputCount) {
+    return { label: "Consolidation", color: "#34d399" };
+  }
+  if (tx.outputCount > tx.inputCount * 1.2) {
+    return { label: "Distribution", color: "#fb923c" };
+  }
+  return { label: "Transfer", color: "var(--muted)" };
+}
 
 export default function WhaleTracker() {
   const [txs, setTxs] = useState<WhaleTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [threshold, setThreshold] = useState(10);
 
   async function load() {
     setLoading(true);
@@ -62,7 +72,9 @@ export default function WhaleTracker() {
 
   useEffect(() => { load(); }, []);
 
-  const totalBtc = txs.reduce((s, t) => s + t.btc, 0);
+  const filteredTxs = txs.filter(tx => tx.btc >= threshold);
+  const totalBtc = filteredTxs.reduce((s, t) => s + t.btc, 0);
+  const consolidatingCount = filteredTxs.filter(tx => getDirection(tx).label === "Consolidation").length;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
@@ -101,15 +113,37 @@ export default function WhaleTracker() {
         </div>
       )}
 
+      {/* Threshold slider — always visible once data loaded */}
+      {!loading && !error && txs.length > 0 && (
+        <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", whiteSpace: "nowrap" }}>
+            Min threshold
+          </span>
+          <input
+            type="range"
+            min={10}
+            max={1000}
+            step={10}
+            value={threshold}
+            onChange={e => setThreshold(Number(e.target.value))}
+            style={{ flex: 1, minWidth: 160, cursor: "pointer", accentColor: "#4f7cff" }}
+          />
+          <span style={{ fontSize: "1rem", fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>
+            ≥ {threshold} BTC
+          </span>
+        </div>
+      )}
+
       {!loading && !error && txs.length > 0 && (
         <>
           {/* Summary row */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
             {[
-              { label: "Transactions shown", value: txs.length.toString() },
+              { label: "Transactions shown", value: filteredTxs.length.toString() },
               { label: "Total BTC moved", value: `${fmtBtc(totalBtc)} BTC` },
               { label: "Source", value: "Mempool.space" },
-              { label: "Threshold", value: "≥ 10 BTC" },
+              { label: "Threshold", value: `≥ ${threshold} BTC` },
+              { label: "Consolidating", value: `${consolidatingCount} / ${filteredTxs.length}` },
             ].map((s) => (
               <div key={s.label} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <p style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</p>
@@ -118,64 +152,88 @@ export default function WhaleTracker() {
             ))}
           </div>
 
-          {/* Transaction table */}
-          <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Size", "Amount (BTC)", "Inputs → Outputs", "Block", "Time", "Tx Hash"].map((h) => (
-                      <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", whiteSpace: "nowrap" }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {txs.map((tx) => {
-                    const size = sizeLabel(tx.btc);
-                    return (
-                      <tr key={tx.hash} style={{ borderTop: "1px solid var(--border)" }}>
-                        <td style={{ padding: "13px 18px" }}>
-                          <span style={{
-                            fontSize: "0.7rem", fontWeight: 700, padding: "3px 10px", borderRadius: 999,
-                            backgroundColor: `${size.color}18`, color: size.color, whiteSpace: "nowrap",
-                            border: `1px solid ${size.color}44`,
-                          }}>
-                            {size.label}
-                          </span>
-                        </td>
-                        <td style={{ padding: "13px 18px", fontWeight: 700, fontSize: "0.9rem" }}>
-                          {fmtBtc(tx.btc)} BTC
-                        </td>
-                        <td style={{ padding: "13px 18px", fontSize: "0.85rem", color: "var(--muted)" }}>
-                          {tx.inputCount} → {tx.outputCount}
-                        </td>
-                        <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
-                          #{tx.blockHeight.toLocaleString()}
-                        </td>
-                        <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
-                          {timeAgo(tx.time)}
-                        </td>
-                        <td style={{ padding: "13px 18px" }}>
-                          <a
-                            href={`https://mempool.space/tx/${tx.hash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: "0.78rem", color: "var(--blue)", textDecoration: "none", fontFamily: "monospace" }}
-                          >
-                            {tx.hash.slice(0, 12)}…
-                          </a>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          {filteredTxs.length === 0 ? (
+            <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "60px 32px", textAlign: "center", color: "var(--muted)" }}>
+              No transactions ≥ {threshold} BTC found. Lower the threshold or refresh.
             </div>
-          </div>
+          ) : (
+            <>
+              {/* Transaction table */}
+              <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        {["Size", "Amount (BTC)", "Direction", "Inputs → Outputs", "Block", "Time", "Tx Hash"].map((h) => (
+                          <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTxs.map((tx) => {
+                        const size = sizeLabel(tx.btc);
+                        const dir = getDirection(tx);
+                        return (
+                          <tr key={tx.hash} style={{ borderTop: "1px solid var(--border)" }}>
+                            <td style={{ padding: "13px 18px" }}>
+                              <span style={{
+                                fontSize: "0.7rem", fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+                                backgroundColor: `${size.color}18`, color: size.color, whiteSpace: "nowrap",
+                                border: `1px solid ${size.color}44`,
+                              }}>
+                                {size.label}
+                              </span>
+                            </td>
+                            <td style={{ padding: "13px 18px", fontWeight: 700, fontSize: "0.9rem" }}>
+                              {fmtBtc(tx.btc)} BTC
+                            </td>
+                            <td style={{ padding: "13px 18px" }}>
+                              <span style={{
+                                fontSize: "0.7rem", fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+                                backgroundColor: dir.color.startsWith("var") ? "rgba(150,150,150,0.12)" : `${dir.color}18`,
+                                color: dir.color,
+                                whiteSpace: "nowrap",
+                                border: dir.color.startsWith("var") ? "1px solid rgba(150,150,150,0.3)" : `1px solid ${dir.color}44`,
+                              }}>
+                                {dir.label}
+                              </span>
+                            </td>
+                            <td style={{ padding: "13px 18px", fontSize: "0.85rem", color: "var(--muted)" }}>
+                              {tx.inputCount} → {tx.outputCount}
+                            </td>
+                            <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                              #{tx.blockHeight.toLocaleString()}
+                            </td>
+                            <td style={{ padding: "13px 18px", fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                              {timeAgo(tx.time)}
+                            </td>
+                            <td style={{ padding: "13px 18px" }}>
+                              <a
+                                href={`https://mempool.space/tx/${tx.hash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: "0.78rem", color: "var(--blue)", textDecoration: "none", fontFamily: "monospace" }}
+                              >
+                                {tx.hash.slice(0, 12)}…
+                              </a>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          <p style={{ marginTop: 20, fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
+              <p style={{ marginTop: 14, fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", fontStyle: "italic" }}>
+                Direction estimated from input/output count ratio — not from wallet addresses. Consolidation = many→few (accumulation signal). Distribution = few→many (sell signal).
+              </p>
+            </>
+          )}
+
+          <p style={{ marginTop: 12, fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
             Confirmed block data from Mempool.space · Refreshed every 2 min · Transactions ≥ 10 BTC · Not financial advice.
           </p>
         </>

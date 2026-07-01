@@ -39,7 +39,7 @@ function fmtUsd(n: number) {
   return `$${fmt(n)}`;
 }
 
-export default function DCACalculator() {
+function DCACalculator() {
   const [asset, setAsset] = useState<Asset>("BTC");
   const [amount, setAmount] = useState("100");
   const [frequency, setFrequency] = useState<Frequency>("weekly");
@@ -451,3 +451,677 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   colorScheme: "dark",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Math helpers for the risk model
+// ─────────────────────────────────────────────────────────────────────────────
+
+function rollingMean(arr: number[], window: number): number[] {
+  return arr.map((_, i) => {
+    if (i < window - 1) return NaN;
+    let sum = 0;
+    for (let j = i - window + 1; j <= i; j++) sum += arr[j];
+    return sum / window;
+  });
+}
+
+function rollingStd(arr: number[], window: number): number[] {
+  const means = rollingMean(arr, window);
+  return arr.map((_, i) => {
+    if (i < window - 1) return NaN;
+    const mean = means[i];
+    let variance = 0;
+    for (let j = i - window + 1; j <= i; j++) {
+      variance += (arr[j] - mean) ** 2;
+    }
+    // Sample std (ddof=1 like pandas)
+    return Math.sqrt(variance / (window - 1));
+  });
+}
+
+function rollingZscore(arr: number[], window: number): number[] {
+  const means = rollingMean(arr, window);
+  const stds = rollingStd(arr, window);
+  return arr.map((v, i) => {
+    if (isNaN(means[i]) || isNaN(stds[i]) || stds[i] === 0) return NaN;
+    return (v - means[i]) / stds[i];
+  });
+}
+
+function expandingMinMax100(arr: number[]): number[] {
+  let min = Infinity;
+  let max = -Infinity;
+  return arr.map((v) => {
+    if (!isNaN(v)) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    if (isNaN(v) || min === max || !isFinite(min) || !isFinite(max)) return 50;
+    const scaled = ((v - min) / (max - min)) * 100;
+    return Math.min(100, Math.max(0, scaled));
+  });
+}
+
+function wilderRSI(closes: number[], window: number = 14): number[] {
+  const result: number[] = new Array(closes.length).fill(NaN);
+  if (closes.length <= window) return result;
+
+  const changes: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1]);
+  }
+
+  // Seed: simple average of first `window` changes
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 0; i < window; i++) {
+    const c = changes[i];
+    if (c > 0) avgGain += c;
+    else avgLoss += -c;
+  }
+  avgGain /= window;
+  avgLoss /= window;
+
+  // First valid RSI is at index `window` (price index window means change index window-1)
+  result[window] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+  for (let i = window + 1; i < closes.length; i++) {
+    const c = changes[i - 1];
+    const gain = c > 0 ? c : 0;
+    const loss = c < 0 ? -c : 0;
+    avgGain = (avgGain * (window - 1) + gain) / window;
+    avgLoss = (avgLoss * (window - 1) + loss) / window;
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+
+  return result;
+}
+
+function rollingMA(arr: number[], window: number): number[] {
+  return rollingMean(arr, window);
+}
+
+function computeRiskScores(prices: [number, number][]): number[] {
+  const closes = prices.map(([, p]) => p);
+  const n = closes.length;
+
+  // ── Factor 1: Valuation (35%) ──────────────────────────────────────────────
+  const logPrice = closes.map((p) => Math.log(p));
+  const valZscore = rollingZscore(logPrice, 365);
+  const valRaw = valZscore.map((z) => (isNaN(z) ? NaN : -z));
+  const valuation = expandingMinMax100(valRaw);
+
+  // ── Factor 2: Trend (25%) ──────────────────────────────────────────────────
+  const rsi14 = wilderRSI(closes, 14);
+  const ma20 = rollingMA(closes, 20);
+  const ma200 = rollingMA(closes, 200);
+  const trendRaw = closes.map((c, i) => {
+    const rsiNorm = isNaN(rsi14[i]) ? NaN : rsi14[i] / 100;
+    const vsMA20 = isNaN(ma20[i]) || ma20[i] === 0 ? NaN : c / ma20[i] - 1;
+    const vsMA200 = isNaN(ma200[i]) || ma200[i] === 0 ? NaN : c / ma200[i] - 1;
+    const vals = [rsiNorm, vsMA20, vsMA200].filter((v) => !isNaN(v!)) as number[];
+    if (vals.length === 0) return NaN;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  });
+  const trend = expandingMinMax100(trendRaw);
+
+  // ── Factor 3: Structure (20%) ──────────────────────────────────────────────
+  // Daily returns
+  const dailyReturns = closes.map((c, i) => (i === 0 ? NaN : (c - closes[i - 1]) / closes[i - 1]));
+  // 30-day annualised volatility
+  const vol30 = rollingStd(dailyReturns.slice(1), 30).map((v) => (isNaN(v) ? NaN : v * Math.sqrt(365)));
+  // Pad back to length n (first element was dropped for dailyReturns)
+  const vol30Full = [NaN, ...vol30];
+  const structureRawZ = rollingZscore(vol30Full, 365);
+  const structureRaw = structureRawZ.map((z) => (isNaN(z) ? NaN : -z));
+  const structureHealth = expandingMinMax100(structureRaw);
+  const structure = structureHealth.map((v) => 100 - v);
+
+  // ── Factor 4: Sentiment (20%) ─────────────────────────────────────────────
+  const ret30 = closes.map((c, i) => (i < 30 ? NaN : (c - closes[i - 30]) / closes[i - 30]));
+  const sentimentRawZ = rollingZscore(ret30, 365);
+  const sentiment = expandingMinMax100(sentimentRawZ);
+
+  // ── Composite ─────────────────────────────────────────────────────────────
+  const riskScores = Array.from({ length: n }, (_, i) => {
+    const raw =
+      0.35 * valuation[i] +
+      0.25 * trend[i] +
+      0.20 * structure[i] +
+      0.20 * sentiment[i];
+    const score = raw / 10;
+    return Math.min(10, Math.max(0, score));
+  });
+
+  return riskScores;
+}
+
+type DynamicDCAResult = {
+  // Dynamic DCA
+  dynTotalInvested: number;
+  dynBtcHeld: number;
+  dynPortfolioValue: number;
+  dynRoi: number;
+  dynBuysMade: number;
+  dynAvgBuyPrice: number;
+  dynSellSignals: number;
+  dynTotalBtcSold: number;
+  dynUsdFromSells: number;
+  dynCashOnHand: number;
+  dynNetPositionValue: number;
+  // Normal DCA (weekly, same amount, same start date)
+  normTotalInvested: number;
+  normPortfolioValue: number;
+  normRoi: number;
+  normBuysMade: number;
+  normAvgBuyPrice: number;
+  // Shared
+  currentPrice: number;
+  startDateStr: string;
+  shortHistory: boolean;
+};
+
+function DynamicDCA() {
+  const [amount, setAmount] = useState("100");
+  const [startDate, setStartDate] = useState("2021-01-01");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<DynamicDCAResult | null>(null);
+
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() - 7);
+  const maxDateStr = maxDate.toISOString().split("T")[0];
+
+  const calculate = useCallback(async () => {
+    const investAmt = parseFloat(amount);
+    if (!investAmt || investAmt <= 0) {
+      setError("Enter a valid investment amount.");
+      return;
+    }
+    const userStart = new Date(startDate + "T00:00:00Z");
+    const now = new Date();
+    if (userStart >= now) {
+      setError("Start date must be in the past.");
+      return;
+    }
+
+    // Fetch enough history for the risk model (365-day warmup)
+    const warmupStart = new Date(userStart);
+    warmupStart.setDate(warmupStart.getDate() - 365);
+    const fetchStart = new Date(Math.max(warmupStart.getTime(), new Date("2015-01-01").getTime()));
+
+    setLoading(true);
+    setError("");
+    setResult(null);
+
+    try {
+      const url = `/api/prices?coin=BTC&startTime=${fetchStart.getTime()}&endTime=${now.getTime()}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status} — failed to fetch price data.`);
+      }
+      const prices: [number, number][] = await res.json();
+      if (!prices.length) throw new Error("No price data returned for this date range.");
+
+      // Sort by timestamp ascending
+      prices.sort((a, b) => a[0] - b[0]);
+
+      const currentPrice = prices[prices.length - 1][1];
+
+      // Warn if < 365 days from user start to now
+      const msFromStart = now.getTime() - userStart.getTime();
+      const shortHistory = msFromStart < 365 * 86_400_000;
+
+      // Compute risk scores over full fetched range
+      const riskScores = computeRiskScores(prices);
+
+      // Find index where user simulation starts
+      const userStartMs = userStart.getTime();
+      const simStartIdx = prices.findIndex(([ts]) => ts >= userStartMs);
+      if (simStartIdx === -1) throw new Error("No price data at or after start date.");
+
+      // ── Dynamic DCA simulation ────────────────────────────────────────────
+      let dynBtcHeld = 0;
+      let dynTotalInvested = 0;
+      let dynBuysMade = 0;
+      let dynSumBuyPrice = 0; // sum of prices paid (for avg)
+      let dynSumBtcBought = 0;
+      let dynSellSignals = 0;
+      let dynTotalBtcSold = 0;
+      let dynUsdFromSells = 0;
+      let dynCashOnHand = 0;
+
+      for (let i = simStartIdx; i < prices.length; i++) {
+        const score = riskScores[i];
+        const price = prices[i][1];
+
+        if (score < 3.5) {
+          // BUY
+          const btcBought = investAmt / price;
+          dynBtcHeld += btcBought;
+          dynTotalInvested += investAmt;
+          dynBuysMade++;
+          dynSumBuyPrice += price;
+          dynSumBtcBought += btcBought;
+        } else if (score > 6.0 && dynBtcHeld > 0) {
+          // SELL ALL
+          const usd = dynBtcHeld * price;
+          dynUsdFromSells += usd;
+          dynCashOnHand += usd;
+          dynTotalBtcSold += dynBtcHeld;
+          dynBtcHeld = 0;
+          dynSellSignals++;
+        }
+      }
+
+      const dynPortfolioValue = dynBtcHeld * currentPrice;
+      const dynNetPositionValue = dynPortfolioValue + dynCashOnHand;
+      const dynRoi = dynTotalInvested > 0 ? ((dynNetPositionValue - dynTotalInvested) / dynTotalInvested) * 100 : 0;
+      const dynAvgBuyPrice = dynBuysMade > 0 ? dynSumBuyPrice / dynBuysMade : 0;
+
+      // ── Normal DCA (weekly, same amount, same start) ──────────────────────
+      const MS_PER_DAY = 86_400_000;
+      const priceMap = new Map<number, number>(
+        prices.map(([ts, p]) => [Math.floor(ts / MS_PER_DAY), p])
+      );
+      const sortedDays = [...priceMap.keys()].sort((a, b) => a - b);
+
+      function closestPrice(targetDayKey: number): number {
+        if (priceMap.has(targetDayKey)) return priceMap.get(targetDayKey)!;
+        let best = sortedDays[0];
+        let bestDiff = Math.abs(best - targetDayKey);
+        for (const d of sortedDays) {
+          const diff = Math.abs(d - targetDayKey);
+          if (diff < bestDiff) { best = d; bestDiff = diff; }
+          if (d > targetDayKey) break;
+        }
+        return priceMap.get(best)!;
+      }
+
+      let normTotalInvested = 0;
+      let normBtcHeld = 0;
+      let normBuysMade = 0;
+      let normSumBuyPrice = 0;
+      const weekMs = 7 * MS_PER_DAY;
+
+      for (let ts = userStartMs; ts <= now.getTime(); ts += weekMs) {
+        const dayKey = Math.floor(ts / MS_PER_DAY);
+        const price = closestPrice(dayKey);
+        if (!price) continue;
+        normBtcHeld += investAmt / price;
+        normTotalInvested += investAmt;
+        normBuysMade++;
+        normSumBuyPrice += price;
+      }
+
+      const normPortfolioValue = normBtcHeld * currentPrice;
+      const normRoi = normTotalInvested > 0 ? ((normPortfolioValue - normTotalInvested) / normTotalInvested) * 100 : 0;
+      const normAvgBuyPrice = normBuysMade > 0 ? normSumBuyPrice / normBuysMade : 0;
+
+      setResult({
+        dynTotalInvested,
+        dynBtcHeld,
+        dynPortfolioValue,
+        dynRoi,
+        dynBuysMade,
+        dynAvgBuyPrice,
+        dynSellSignals,
+        dynTotalBtcSold,
+        dynUsdFromSells,
+        dynCashOnHand,
+        dynNetPositionValue,
+        normTotalInvested,
+        normPortfolioValue,
+        normRoi,
+        normBuysMade,
+        normAvgBuyPrice,
+        currentPrice,
+        startDateStr: startDate,
+        shortHistory,
+      });
+    } catch (e: any) {
+      setError(e.message || "Failed to compute. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [amount, startDate]);
+
+  return (
+    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 64px" }}>
+      {/* Section divider */}
+      <div style={{ borderTop: "1px solid var(--border)", marginBottom: 48 }} />
+
+      {/* Header */}
+      <div style={{ marginBottom: 40 }}>
+        <div
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            color: "var(--muted)",
+            marginBottom: 10,
+          }}
+        >
+          Dynamic DCA
+        </div>
+        <h2
+          style={{
+            fontSize: "clamp(1.4rem, 2.5vw, 1.8rem)",
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            marginBottom: 10,
+          }}
+        >
+          Dynamic DCA — Risk-Based Strategy
+        </h2>
+        <p style={{ color: "var(--muted)", fontSize: "0.9rem", maxWidth: 560 }}>
+          Instead of buying on a fixed schedule, this strategy uses a 4-factor risk model to buy BTC
+          when risk is low and sell when risk is elevated. BTC only — the model is calibrated for Bitcoin.
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(300px, 380px) 1fr",
+          gap: 28,
+          alignItems: "start",
+        }}
+        className="dyn-dca-grid"
+      >
+        {/* Form */}
+        <div
+          style={{
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: 28,
+            display: "flex",
+            flexDirection: "column",
+            gap: 20,
+          }}
+        >
+          {/* Asset — BTC only */}
+          <div>
+            <label style={labelStyle}>Asset</label>
+            <div
+              style={{
+                padding: "9px 12px",
+                borderRadius: 7,
+                border: "1px solid var(--blue)",
+                backgroundColor: "rgba(79,124,255,0.12)",
+                color: "var(--blue)",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>BTC</span>
+              <span style={{ display: "block", fontSize: "0.75rem", marginTop: 1, color: "var(--muted)" }}>
+                Bitcoin — risk model is BTC-specific
+              </span>
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label htmlFor="dyn-amount" style={labelStyle}>Investment per buy signal (USD)</label>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", fontSize: "0.9rem" }}>$</span>
+              <input
+                id="dyn-amount"
+                type="number"
+                min="1"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                style={{ ...inputStyle, paddingLeft: 26 }}
+              />
+            </div>
+          </div>
+
+          {/* Start date */}
+          <div>
+            <label htmlFor="dyn-start-date" style={labelStyle}>Start date</label>
+            <input
+              id="dyn-start-date"
+              type="date"
+              value={startDate}
+              max={maxDateStr}
+              min="2015-01-01"
+              onChange={(e) => setStartDate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {error && (
+            <p style={{ color: "var(--red)", fontSize: "0.8rem", margin: 0 }}>{error}</p>
+          )}
+
+          <button
+            onClick={calculate}
+            disabled={loading}
+            style={{
+              padding: "12px",
+              backgroundColor: loading ? "var(--border)" : "var(--blue)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: "0.9rem",
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              transition: "background 0.15s",
+            }}
+          >
+            {loading ? "Computing risk model…" : "Run Simulation"}
+          </button>
+        </div>
+
+        {/* Results */}
+        <div>
+          {!result && !loading && (
+            <div
+              style={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "48px 32px",
+                textAlign: "center",
+                color: "var(--muted)",
+              }}
+            >
+              <div style={{ fontSize: "2.5rem", marginBottom: 16 }}>📊</div>
+              <p style={{ fontSize: "0.9rem" }}>
+                Set your parameters and hit <strong style={{ color: "var(--text)" }}>Run Simulation</strong> to see how the risk-based strategy compares to regular DCA.
+              </p>
+            </div>
+          )}
+
+          {result && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+              {/* Short history warning */}
+              {result.shortHistory && (
+                <div
+                  style={{
+                    backgroundColor: "rgba(251,191,36,0.1)",
+                    border: "1px solid rgba(251,191,36,0.5)",
+                    borderRadius: 10,
+                    padding: "12px 16px",
+                    fontSize: "0.82rem",
+                    color: "var(--text)",
+                  }}
+                >
+                  ⚠️ Risk model needs at least 1 year of price history for reliable signals. Consider an earlier start date.
+                </div>
+              )}
+
+              {/* Narrative */}
+              <div
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  padding: "20px 24px",
+                  fontSize: "0.88rem",
+                  lineHeight: 1.6,
+                  color: "var(--muted)",
+                }}
+              >
+                Your dynamic strategy bought <strong style={{ color: "var(--text)" }}>{fmt(result.dynBtcHeld + result.dynTotalBtcSold, 4)} BTC</strong> across{" "}
+                <strong style={{ color: "var(--text)" }}>{result.dynBuysMade}</strong> low-risk {result.dynBuysMade === 1 ? "day" : "days"} and sold everything{" "}
+                <strong style={{ color: "var(--text)" }}>{result.dynSellSignals}</strong> {result.dynSellSignals === 1 ? "time" : "times"} during high-risk periods.
+                Net result:{" "}
+                <strong style={{ color: result.dynUsdFromSells > 0 ? "var(--green)" : "var(--text)" }}>
+                  {fmtUsd(result.dynUsdFromSells)}
+                </strong>{" "}
+                in realized proceeds + <strong style={{ color: "var(--text)" }}>{fmtUsd(result.dynPortfolioValue)}</strong> current BTC value.
+              </div>
+
+              {/* Side-by-side comparison table */}
+              <div
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    borderBottom: "1px solid var(--border)",
+                    padding: "12px 18px",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Metric</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Normal DCA (weekly)</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--blue)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dynamic DCA</span>
+                </div>
+                {[
+                  {
+                    label: "Total Invested",
+                    norm: fmtUsd(result.normTotalInvested),
+                    dyn: fmtUsd(result.dynTotalInvested),
+                  },
+                  {
+                    label: "Portfolio Value",
+                    norm: fmtUsd(result.normPortfolioValue),
+                    dyn: fmtUsd(result.dynNetPositionValue),
+                    normHighlight: result.normRoi >= 0 ? "green" : "red",
+                    dynHighlight: result.dynRoi >= 0 ? "green" : "red",
+                  },
+                  {
+                    label: "Profit / Loss",
+                    norm: `${result.normRoi >= 0 ? "+" : ""}${fmtUsd(result.normPortfolioValue - result.normTotalInvested)}`,
+                    dyn: `${result.dynRoi >= 0 ? "+" : ""}${fmtUsd(result.dynNetPositionValue - result.dynTotalInvested)}`,
+                    normHighlight: result.normRoi >= 0 ? "green" : "red",
+                    dynHighlight: result.dynRoi >= 0 ? "green" : "red",
+                  },
+                  {
+                    label: "ROI %",
+                    norm: `${result.normRoi >= 0 ? "+" : ""}${fmt(result.normRoi, 1)}%`,
+                    dyn: `${result.dynRoi >= 0 ? "+" : ""}${fmt(result.dynRoi, 1)}%`,
+                    normHighlight: result.normRoi >= 0 ? "green" : "red",
+                    dynHighlight: result.dynRoi >= 0 ? "green" : "red",
+                  },
+                  {
+                    label: "Buys Made",
+                    norm: String(result.normBuysMade),
+                    dyn: String(result.dynBuysMade),
+                  },
+                  {
+                    label: "Avg Buy Price",
+                    norm: result.normAvgBuyPrice > 0 ? `$${fmt(result.normAvgBuyPrice)}` : "—",
+                    dyn: result.dynAvgBuyPrice > 0 ? `$${fmt(result.dynAvgBuyPrice)}` : "—",
+                  },
+                ].map((row, idx) => (
+                  <div
+                    key={row.label}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      padding: "12px 18px",
+                      gap: 8,
+                      borderBottom: idx < 5 ? "1px solid var(--border)" : "none",
+                      backgroundColor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{row.label}</span>
+                    <span
+                      style={{
+                        fontSize: "0.88rem",
+                        fontWeight: 600,
+                        color: (row as any).normHighlight === "green" ? "var(--green)"
+                          : (row as any).normHighlight === "red" ? "var(--red)"
+                          : "var(--text)",
+                      }}
+                    >
+                      {row.norm}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.88rem",
+                        fontWeight: 600,
+                        color: (row as any).dynHighlight === "green" ? "var(--green)"
+                          : (row as any).dynHighlight === "red" ? "var(--red)"
+                          : "var(--blue)",
+                      }}
+                    >
+                      {row.dyn}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Dynamic DCA additional stats */}
+              <div>
+                <p
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: "var(--muted)",
+                    marginBottom: 12,
+                  }}
+                >
+                  Dynamic DCA Details
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                  <StatCard label="Sell signals triggered" value={String(result.dynSellSignals)} />
+                  <StatCard label="Total BTC sold" value={`${fmt(result.dynTotalBtcSold, 4)} BTC`} />
+                  <StatCard label="USD received from sells" value={fmtUsd(result.dynUsdFromSells)} highlight={result.dynUsdFromSells > 0 ? "green" : undefined} />
+                  <StatCard label="Current BTC held" value={`${fmt(result.dynBtcHeld, 4)} BTC`} />
+                  <StatCard label="Cash on hand" value={fmtUsd(result.dynCashOnHand)} />
+                  <StatCard label="Net position value" value={fmtUsd(result.dynNetPositionValue)} highlight={result.dynRoi >= 0 ? "green" : "red"} />
+                </div>
+              </div>
+
+              <p style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
+                Prices from Yahoo Finance · Risk model computed client-side · Past performance is not indicative of future results.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .dyn-dca-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default function DCAPage() {
+  return (
+    <>
+      <DCACalculator />
+      <DynamicDCA />
+    </>
+  );
+}
