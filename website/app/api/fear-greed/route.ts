@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const res = await fetch("https://api.alternative.me/fng/?limit=365&format=json", {
+  const res = await fetch("https://api.alternative.me/fng/?limit=0&format=json", {
     headers: { Accept: "application/json" },
     next: { revalidate: 3600 },
   });

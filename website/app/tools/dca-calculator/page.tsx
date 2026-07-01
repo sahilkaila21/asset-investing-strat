@@ -541,17 +541,32 @@ function rollingMA(arr: number[], window: number): number[] {
   return rollingMean(arr, window);
 }
 
-function computeRiskScores(prices: [number, number][]): number[] {
+// Target weights (13-factor model). Factors not yet available default to neutral (50).
+// Available now: valuation(12), trend(8), structure(8), sentiment(6), fearGreed(12) → total 46
+// Coming soon: MVRV(18), NetworkHealth(1), PuellMultiple(8), FundingRate(7),
+//              BTCDominance(4), InterestRate(4), DXY(3), CPI(4)
+const W_VALUATION  = 12;
+const W_TREND      = 8;
+const W_STRUCTURE  = 8;
+const W_SENTIMENT  = 6;
+const W_FEAR_GREED = 12;
+const W_TOTAL_AVAILABLE = W_VALUATION + W_TREND + W_STRUCTURE + W_SENTIMENT + W_FEAR_GREED; // 46
+
+function computeRiskScores(
+  prices: [number, number][],
+  fgByDay: Map<number, number> // dayKey (floor(ts_ms / 86400000)) → F&G value 0-100
+): number[] {
   const closes = prices.map(([, p]) => p);
   const n = closes.length;
+  const MS_PER_DAY = 86_400_000;
 
-  // ── Factor 1: Valuation (35%) ──────────────────────────────────────────────
+  // ── Factor 1: Valuation (w=12) ────────────────────────────────────────────
   const logPrice = closes.map((p) => Math.log(p));
   const valZscore = rollingZscore(logPrice, 365);
   const valRaw = valZscore.map((z) => (isNaN(z) ? NaN : -z));
   const valuation = expandingMinMax100(valRaw);
 
-  // ── Factor 2: Trend (25%) ──────────────────────────────────────────────────
+  // ── Factor 2: Trend (w=8) ─────────────────────────────────────────────────
   const rsi14 = wilderRSI(closes, 14);
   const ma20 = rollingMA(closes, 20);
   const ma200 = rollingMA(closes, 200);
@@ -565,30 +580,37 @@ function computeRiskScores(prices: [number, number][]): number[] {
   });
   const trend = expandingMinMax100(trendRaw);
 
-  // ── Factor 3: Structure (20%) ──────────────────────────────────────────────
-  // Daily returns
+  // ── Factor 3: Structure (w=8) ─────────────────────────────────────────────
   const dailyReturns = closes.map((c, i) => (i === 0 ? NaN : (c - closes[i - 1]) / closes[i - 1]));
-  // 30-day annualised volatility
   const vol30 = rollingStd(dailyReturns.slice(1), 30).map((v) => (isNaN(v) ? NaN : v * Math.sqrt(365)));
-  // Pad back to length n (first element was dropped for dailyReturns)
   const vol30Full = [NaN, ...vol30];
   const structureRawZ = rollingZscore(vol30Full, 365);
   const structureRaw = structureRawZ.map((z) => (isNaN(z) ? NaN : -z));
   const structureHealth = expandingMinMax100(structureRaw);
   const structure = structureHealth.map((v) => 100 - v);
 
-  // ── Factor 4: Sentiment (20%) ─────────────────────────────────────────────
+  // ── Factor 4: Sentiment (w=6) ─────────────────────────────────────────────
   const ret30 = closes.map((c, i) => (i < 30 ? NaN : (c - closes[i - 30]) / closes[i - 30]));
   const sentimentRawZ = rollingZscore(ret30, 365);
   const sentiment = expandingMinMax100(sentimentRawZ);
 
-  // ── Composite ─────────────────────────────────────────────────────────────
+  // ── Factor 5: Fear & Greed (w=12) ────────────────────────────────────────
+  // Value 0=Extreme Fear (low risk), 100=Extreme Greed (high risk) — already 0-100 scale
+  const fearGreed = prices.map(([ts]) => {
+    const dayKey = Math.floor(ts / MS_PER_DAY);
+    // Try exact day, then ±1 day
+    return fgByDay.get(dayKey) ?? fgByDay.get(dayKey - 1) ?? fgByDay.get(dayKey + 1) ?? 50;
+  });
+
+  // ── Composite (normalized across available factors) ───────────────────────
   const riskScores = Array.from({ length: n }, (_, i) => {
-    const raw =
-      0.35 * valuation[i] +
-      0.25 * trend[i] +
-      0.20 * structure[i] +
-      0.20 * sentiment[i];
+    const raw = (
+      W_VALUATION  * valuation[i] +
+      W_TREND      * trend[i] +
+      W_STRUCTURE  * structure[i] +
+      W_SENTIMENT  * sentiment[i] +
+      W_FEAR_GREED * fearGreed[i]
+    ) / W_TOTAL_AVAILABLE;
     const score = raw / 10;
     return Math.min(10, Math.max(0, score));
   });
@@ -655,14 +677,31 @@ function DynamicDCA() {
     setResult(null);
 
     try {
-      const url = `/api/prices?coin=BTC&startTime=${fetchStart.getTime()}&endTime=${now.getTime()}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status} — failed to fetch price data.`);
+      const MS_PER_DAY = 86_400_000;
+
+      // Fetch prices and Fear & Greed in parallel
+      const [priceRes, fgRes] = await Promise.all([
+        fetch(`/api/prices?coin=BTC&startTime=${fetchStart.getTime()}&endTime=${now.getTime()}`),
+        fetch("/api/fear-greed"),
+      ]);
+
+      if (!priceRes.ok) {
+        const body = await priceRes.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${priceRes.status} — failed to fetch price data.`);
       }
-      const prices: [number, number][] = await res.json();
+      const prices: [number, number][] = await priceRes.json();
       if (!prices.length) throw new Error("No price data returned for this date range.");
+
+      // Build Fear & Greed lookup map (dayKey → value 0-100)
+      // Falls back gracefully if the API fails — missing days default to neutral (50) in computeRiskScores
+      const fgByDay = new Map<number, number>();
+      if (fgRes.ok) {
+        const fgData: { value: string; timestamp: string }[] = await fgRes.json().catch(() => []);
+        for (const entry of fgData) {
+          const dayKey = Math.floor((Number(entry.timestamp) * 1000) / MS_PER_DAY);
+          fgByDay.set(dayKey, Number(entry.value));
+        }
+      }
 
       // Sort by timestamp ascending
       prices.sort((a, b) => a[0] - b[0]);
@@ -673,8 +712,8 @@ function DynamicDCA() {
       const msFromStart = now.getTime() - userStart.getTime();
       const shortHistory = msFromStart < 365 * 86_400_000;
 
-      // Compute risk scores over full fetched range
-      const riskScores = computeRiskScores(prices);
+      // Compute risk scores using 5-factor model (valuation, trend, structure, sentiment, fear & greed)
+      const riskScores = computeRiskScores(prices, fgByDay);
 
       // Find index where user simulation starts
       const userStartMs = userStart.getTime();
@@ -817,8 +856,9 @@ function DynamicDCA() {
           Dynamic DCA — Risk-Based Strategy
         </h2>
         <p style={{ color: "var(--muted)", fontSize: "0.9rem", maxWidth: 560 }}>
-          Instead of buying on a fixed schedule, this strategy uses a 4-factor risk model to buy BTC
-          when risk is low and sell when risk is elevated. BTC only — the model is calibrated for Bitcoin.
+          Instead of buying on a fixed schedule, this strategy uses our risk model to buy BTC when
+          risk score is below 3.5 and sell when it rises above 6.0. Currently uses 5 factors:
+          valuation, trend, structure, sentiment, and Fear &amp; Greed — BTC only.
         </p>
       </div>
 

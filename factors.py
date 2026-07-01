@@ -43,7 +43,10 @@ def add_risk_and_allocation(
 ) -> pd.DataFrame:
     df = data.copy()
 
-    w = weights or {"valuation": 0.35, "trend": 0.25, "structure": 0.20, "sentiment": 0.20}
+    # Full target weights (13-factor model — new factors added as data sources are integrated):
+    # MVRV:18, NetworkHealth:1, PuellMultiple:8, FundingRate:7, FearGreed:12,
+    # BTCDominance:4, Trend:8, Sentiment:6, Valuation:12, Structure:8, InterestRate:4, DXY:3, CPI:4
+    w = weights or {"valuation": 12, "trend": 8, "structure": 8, "sentiment": 6}
     total = sum(w.values())
     if total > 0:
         w = {k: v / total for k, v in w.items()}
