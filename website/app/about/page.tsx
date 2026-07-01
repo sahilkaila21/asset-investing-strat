@@ -18,10 +18,34 @@ export default function AboutPage() {
           Built from a decade of<br />
           <span style={{ color: "var(--blue)" }}>obsession</span> with markets.
         </h1>
-        <p style={{ fontSize: "1.15rem", lineHeight: 1.75, color: "var(--muted)", maxWidth: 640 }}>
+        <p style={{ fontSize: "1.15rem", lineHeight: 1.75, color: "var(--muted)", maxWidth: 640, marginBottom: 28 }}>
           Not a hedge fund. Not a trading desk. Just someone who couldn&apos;t stop reading, studying, and asking
           <em> why</em> — until the answers started paying off.
         </p>
+
+        {/* Founder byline */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 14,
+          background: "rgba(79,124,255,0.07)", border: "1px solid rgba(79,124,255,0.2)",
+          borderRadius: 12, padding: "12px 20px",
+        }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: "50%",
+            background: "linear-gradient(135deg, #4f7cff 0%, #34d399 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 800, fontSize: "1rem", color: "#fff", flexShrink: 0,
+          }}>
+            SK
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)", letterSpacing: "-0.01em" }}>
+              Sahil Kaila
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
+              Solutions Architect &amp; Data Analyst · Founder, Alphabit
+            </div>
+          </div>
+        </div>
       </div>
 
       <Divider />
