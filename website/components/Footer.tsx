@@ -36,6 +36,7 @@ export default function Footer() {
             { href: "/tools/dca-calculator", label: "DCA Calculator" },
             { href: "/tools/portfolio",      label: "Portfolio" },
             { href: "/tools/whale-tracker",  label: "Whale Tracker" },
+            { href: "/about",               label: "Our Story" },
           ].map((l) => (
             <Link key={l.href} href={l.href} style={{ color: "var(--muted)", fontSize: "0.85rem", textDecoration: "none" }}>
               {l.label}

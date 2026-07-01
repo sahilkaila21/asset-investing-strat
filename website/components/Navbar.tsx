@@ -12,6 +12,7 @@ const tools = [
   { href: "/tools/dca-calculator",  label: "DCA Calculator" },
   { href: "/tools/portfolio",       label: "Portfolio" },
   { href: "/tools/whale-tracker",   label: "Whale Tracker" },
+  { href: "/about",                 label: "Our Story" },
 ];
 
 export default function Navbar() {
