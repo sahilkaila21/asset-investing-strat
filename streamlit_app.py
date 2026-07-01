@@ -85,19 +85,27 @@ def get_price_data(ticker: str) -> pd.DataFrame:
 
 def get_external_data(ticker: str) -> dict:
     """
-    Fetch external data in a daemon thread with a hard 10-second wall-clock cap.
-    Returns whatever loaded within 10s; anything still running is abandoned.
-    Result is stored in session_state (4-hour TTL) — no st.cache_data locking.
+    Returns cached external data if available; otherwise returns {} immediately
+    and kicks off a background fetch. Call refresh_external_data() to wait for results.
+    """
+    import time as _time
+    cache_key = f"ext_{ticker}"
+    ts_key    = f"ext_{ticker}_ts"
+    TTL       = 4 * 3600
+    if _time.time() - st.session_state.get(ts_key, 0) < TTL and cache_key in st.session_state:
+        return st.session_state[cache_key]
+    return {}
+
+
+def load_external_data_now(ticker: str) -> dict:
+    """
+    Blocking fetch with hard 12-second cap. Only called when user requests it.
     """
     import threading as _threading
     import time as _time
 
     cache_key = f"ext_{ticker}"
     ts_key    = f"ext_{ticker}_ts"
-    TTL       = 4 * 3600
-
-    if _time.time() - st.session_state.get(ts_key, 0) < TTL and cache_key in st.session_state:
-        return st.session_state[cache_key]
 
     bucket: list = [{}]
 
@@ -109,7 +117,7 @@ def get_external_data(ticker: str) -> dict:
 
     t = _threading.Thread(target=_run, daemon=True)
     t.start()
-    t.join(timeout=10)          # hard cap — returns after 10s regardless
+    t.join(timeout=12)
 
     data = bucket[0]
     st.session_state[cache_key] = data
@@ -239,8 +247,26 @@ amounts = (float(amt_high), float(amt_mid), float(amt_low))
 with st.spinner(f"Loading {asset_label} data…"):
     raw = get_price_data(ticker)
 
-with st.spinner("Fetching on-chain, market & macro data…"):
-    external = get_external_data(ticker)
+# Check if we have cached external data; if not, show a load button
+import time as _time
+_cache_key = f"ext_{ticker}"
+_ts_key    = f"ext_{ticker}_ts"
+_TTL       = 4 * 3600
+_has_cache = (_time.time() - st.session_state.get(_ts_key, 0) < _TTL
+              and _cache_key in st.session_state)
+
+if not _has_cache:
+    st.info(
+        "📡 On-chain & macro data not yet loaded. "
+        "Click below to fetch it (takes up to 15 seconds). "
+        "Price-based signals are available immediately."
+    )
+    if st.button("Load On-Chain & Macro Data", type="primary"):
+        with st.spinner("Fetching on-chain, market & macro data… (up to 15s)"):
+            load_external_data_now(ticker)
+        st.rerun()
+
+external = get_external_data(ticker)
 
 def _has_data(key: str) -> bool:
     val = external.get(key, pd.Series(dtype=float))
