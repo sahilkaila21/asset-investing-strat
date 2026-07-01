@@ -6,6 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "btc_mvp"))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import pandas as pd
 
@@ -76,6 +77,83 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Custom sidebar toggle (works in embed mode) ───────────────────────────────
+# st.components.v1.html runs in a sandboxed sub-iframe on the same origin,
+# so window.parent points to the Streamlit frame and we can inject a button there.
+components.html("""
+<script>
+(function () {
+    var SELECTORS = [
+        '[data-testid="stSidebarCollapsedControl"] button',
+        '[data-testid="collapsedControl"] button',
+        '[data-testid="stSidebarCollapseButton"] button',
+    ];
+
+    function getDoc() {
+        try { return window.parent.document; } catch (e) { return null; }
+    }
+
+    function sidebarOpen(doc) {
+        var sb = doc.querySelector('[data-testid="stSidebar"]');
+        if (!sb) return false;
+        return sb.getBoundingClientRect().width > 30;
+    }
+
+    function clickNativeToggle(doc) {
+        for (var i = 0; i < SELECTORS.length; i++) {
+            var el = doc.querySelector(SELECTORS[i]);
+            if (el) { el.click(); return; }
+        }
+    }
+
+    function sync(btn, doc) {
+        var open = sidebarOpen(doc);
+        btn.innerHTML = open ? '&#10094;' : '&#10095;';
+        btn.title = open ? 'Collapse weights panel' : 'Expand weights panel';
+    }
+
+    function inject() {
+        var doc = getDoc();
+        if (!doc || doc.getElementById('__sb_toggle')) return;
+
+        var btn = doc.createElement('button');
+        btn.id = '__sb_toggle';
+        btn.style.cssText =
+            'position:fixed;left:0;top:50%;transform:translateY(-50%);' +
+            'width:24px;height:64px;padding:0;margin:0;' +
+            'background:#1e2540;border:1px solid #4a5580;border-left:none;' +
+            'border-radius:0 8px 8px 0;box-shadow:2px 0 10px rgba(0,0,0,.6);' +
+            'cursor:pointer;z-index:2147483647;color:#c9d1e0;font-size:13px;' +
+            'display:flex;align-items:center;justify-content:center;outline:none;';
+
+        btn.addEventListener('mouseenter', function () {
+            btn.style.background = '#2a3a6a';
+            btn.style.borderColor = '#4f7cff';
+        });
+        btn.addEventListener('mouseleave', function () {
+            btn.style.background = '#1e2540';
+            btn.style.borderColor = '#4a5580';
+        });
+        btn.addEventListener('click', function () {
+            clickNativeToggle(doc);
+            setTimeout(function () { sync(btn, doc); }, 350);
+        });
+
+        doc.body.appendChild(btn);
+        sync(btn, doc);
+        setInterval(function () { sync(btn, doc); }, 600);
+    }
+
+    // Retry until Streamlit's DOM is ready
+    var tries = 0;
+    var iv = setInterval(function () {
+        inject();
+        if (++tries > 30) clearInterval(iv);
+    }, 300);
+})();
+</script>
+""", height=0, scrolling=False)
 
 # ── Cached data ───────────────────────────────────────────────────────────────
 
