@@ -64,6 +64,16 @@ st.markdown("""
     .viewerBadge_container__r5tak { display: none !important; }
     .styles_viewerBadge__CvC9N { display: none !important; }
     details summary { color: #8b92a5 !important; font-size: 0.78rem; }
+
+    /* Always show sidebar collapse/expand toggle — embed=true hides it by default */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
