@@ -92,33 +92,47 @@ with st.sidebar:
 
     dw = DEFAULT_WEIGHTS
 
-    with st.expander("🔗 On-Chain Weights", expanded=True):
-        w_mvrv           = st.slider("MVRV Score",       0, 100, int(dw["mvrv"]*100),           help="Market cap / realized cap. Best BTC cycle indicator.")
-        w_network_health = st.slider("Network Health",   0, 100, int(dw["network_health"]*100), help="Hash Rate + Active Addresses composite. High = healthy = lower risk.")
-        w_puell          = st.slider("Puell Multiple",   0, 100, int(dw["puell"]*100),          help="Miner revenue / 365d avg. High (>4) = cycle top. Low (<0.5) = capitulation.")
-        w_funding_rate   = st.slider("Funding Rate",     0, 100, int(dw["funding_rate"]*100),   help="Binance perp funding rate. High positive = overleveraged longs.")
+    COMING_SOON_HTML = (
+        '<span style="background:#1e2336;border:1px solid #2a2f3e;border-radius:4px;'
+        'padding:2px 8px;font-size:0.7rem;color:#5a6175;letter-spacing:0.08em;'
+        'font-weight:600;text-transform:uppercase">Coming Soon</span>'
+    )
 
-    with st.expander("📊 Market & Sentiment Weights", expanded=True):
-        w_fear_greed    = st.slider("Fear & Greed",      0, 100, int(dw["fear_greed"]*100),    help="alternative.me composite. High greed = high risk.")
-        w_btc_dominance = st.slider("BTC Dominance",     0, 100, int(dw["btc_dominance"]*100), help="Low BTC dominance = altcoin euphoria = late bull cycle = high risk.")
-        w_trend         = st.slider("Trend",             0, 100, int(dw["trend"]*100),         help="RSI-14, price vs MA-20, price vs MA-200.")
-        w_sentiment     = st.slider("Sentiment",         0, 100, int(dw["sentiment"]*100),     help="Z-score of 30-day price return.")
+    with st.expander("🔗 On-Chain", expanded=True):
+        st.markdown(f"**MVRV Score** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Market cap / realized cap — CoinMetrics integration pending.")
+        st.markdown(f"**Network Health** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Hash Rate + Active Addresses — CoinMetrics integration pending.")
+        st.markdown(f"**Puell Multiple** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Miner revenue / 365d avg — CoinMetrics integration pending.")
+        st.markdown(f"**Funding Rate** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Binance perp funding rate — Binance Futures integration pending.")
 
-    with st.expander("💰 Price Weights", expanded=False):
+    with st.expander("📊 Market & Sentiment", expanded=True):
+        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100), help="alternative.me composite. High greed = high risk.")
+        st.markdown(f"**BTC Dominance** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Low BTC dominance = altcoin euphoria — CoinGecko integration pending.")
+        w_trend     = st.slider("Trend",      0, 100, int(dw["trend"]*100),     help="RSI-14, price vs MA-20, price vs MA-200.")
+        w_sentiment = st.slider("Sentiment",  0, 100, int(dw["sentiment"]*100), help="Z-score of 30-day price return.")
+
+    with st.expander("💰 Price", expanded=True):
         w_valuation = st.slider("Valuation", 0, 100, int(dw["valuation"]*100), help="Z-score of log price vs 365-day history.")
         w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
 
-    with st.expander("🌍 Macro Weights", expanded=True):
-        w_interest_rate = st.slider("Interest Rate",  0, 100, int(dw["interest_rate"]*100), help="Fed Funds Rate (FRED). High/rising = risk-off environment.")
-        w_dxy           = st.slider("DXY (Dollar)",   0, 100, int(dw["dxy"]*100),           help="US Dollar Index. Strong dollar = headwind for crypto.")
-        w_cpi           = st.slider("CPI Inflation",  0, 100, int(dw["cpi"]*100),           help="CPI YoY % (FRED). High inflation → rate hikes → risk-off.")
+    with st.expander("🌍 Macro", expanded=True):
+        st.markdown(f"**Interest Rate** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("Fed Funds Rate — FRED API integration pending.")
+        st.markdown(f"**DXY (Dollar)** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("US Dollar Index — FRED/yfinance macro integration pending.")
+        st.markdown(f"**CPI Inflation** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption("CPI YoY % — FRED API integration pending.")
 
     raw_weights = {
-        "mvrv": w_mvrv, "network_health": w_network_health, "puell": w_puell,
-        "funding_rate": w_funding_rate, "fear_greed": w_fear_greed,
-        "btc_dominance": w_btc_dominance, "trend": w_trend, "sentiment": w_sentiment,
+        "mvrv": 0, "network_health": 0, "puell": 0,
+        "funding_rate": 0, "fear_greed": w_fear_greed,
+        "btc_dominance": 0, "trend": w_trend, "sentiment": w_sentiment,
         "valuation": w_valuation, "structure": w_structure,
-        "interest_rate": w_interest_rate, "dxy": w_dxy, "cpi": w_cpi,
+        "interest_rate": 0, "dxy": 0, "cpi": 0,
     }
     total_w = sum(raw_weights.values())
     if total_w == 0:
@@ -193,7 +207,7 @@ price_change  = (current_price - float(results["close"].iloc[-2])) / float(resul
 # ── Header ────────────────────────────────────────────────────────────────────
 
 st.markdown(f"## {asset_label} — Risk Model")
-st.caption("Risk-managed DCA strategy using 13 on-chain, market, price and macro signals.")
+st.caption("Risk-managed DCA strategy using 5 live signals. 8 additional factors coming soon.")
 
 status_html = " &nbsp;·&nbsp; ".join(
     f'<span class="{"source-ok" if ok else "source-fail"}">{"✓" if ok else "–"} {name}</span>'
