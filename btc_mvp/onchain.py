@@ -1,11 +1,33 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
+
+
+def _timeout(fn, seconds: int = 8):
+    """
+    Run fn() in a daemon thread; return its result or an empty Series if it
+    doesn't finish within `seconds`. Daemon threads are killed when the
+    process exits, so hung network calls never block the app permanently.
+    """
+    result: list = [pd.Series(dtype=float)]
+    exc: list = [None]
+
+    def _worker():
+        try:
+            result[0] = fn()
+        except Exception as e:
+            exc[0] = e
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout=seconds)
+    return result[0]
 
 BINANCE_SYMBOL_MAP = {
     "BTC-USD": "BTCUSDT",
@@ -113,7 +135,7 @@ def fetch_funding_rate(ticker: str = "BTC-USD") -> pd.Series:
     all_records: list = []
     cursor: str | None = None
     try:
-        for _ in range(10):
+        for _ in range(3):
             params: dict = {"instId": symbol, "limit": 100}
             if cursor:
                 params["after"] = cursor
@@ -192,32 +214,25 @@ def fetch_puell_multiple(ticker: str = "BTC-USD") -> pd.Series:
 
 def fetch_btc_dominance(days: int = 1095) -> pd.Series:
     """
-    Approximates BTC dominance using market caps of BTC + top 4 altcoins via CoinGecko.
-    Low dominance = altcoin euphoria = late bull cycle = higher risk for all crypto.
-    Retries on 429 (rate limit) with exponential backoff.
+    BTC dominance approximated from BTC vs ETH market caps (2 CoinGecko calls).
+    Using only 2 coins keeps total fetch time under 3s.
+    Low BTC dominance = altcoin euphoria = late bull cycle = higher risk.
     """
-    coins = ["bitcoin", "ethereum", "binancecoin", "solana", "ripple"]
     caps: dict[str, pd.Series] = {}
 
-    for coin in coins:
-        for attempt in range(3):
-            resp = _get(
-                f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart",
-                params={"vs_currency": "usd", "days": days, "interval": "daily"},
-            )
-            if resp is not None and resp.status_code == 429:
-                time.sleep(8 * (attempt + 1))
-                continue
-            if resp is not None:
-                try:
-                    mc_data = resp.json().get("market_caps", [])
-                    df = pd.DataFrame(mc_data, columns=["ts", "mc"])
-                    df["date"] = pd.to_datetime(df["ts"], unit="ms").dt.normalize()
-                    caps[coin] = df.set_index("date")["mc"].astype(float)
-                except Exception:
-                    pass
-            break
-        time.sleep(0.5)
+    for coin in ["bitcoin", "ethereum"]:
+        resp = _get(
+            f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart",
+            params={"vs_currency": "usd", "days": days, "interval": "daily"},
+        )
+        if resp is not None and resp.status_code == 200:
+            try:
+                mc_data = resp.json().get("market_caps", [])
+                df = pd.DataFrame(mc_data, columns=["ts", "mc"])
+                df["date"] = pd.to_datetime(df["ts"], unit="ms").dt.normalize()
+                caps[coin] = df.set_index("date")["mc"].astype(float)
+            except Exception:
+                pass
 
     if "bitcoin" not in caps:
         return pd.Series(dtype=float)
@@ -247,30 +262,29 @@ def fetch_cpi() -> pd.Series:
 
 def fetch_all(ticker: str = "BTC-USD") -> dict:
     """
-    Fetch all external data sources in parallel.
-    Hard wall-clock cap: 20s. Any source not done by then gets an empty Series.
-    Uses shutdown(wait=False) so hung network threads never block the return.
+    Fetch all external data sources, each capped at 8 seconds via a daemon thread.
+    All 9 fetchers run in parallel threads. Total wall-clock time ≤ 8s regardless
+    of any individual source hanging (network stalls, yfinance blocking, etc.).
     """
-    from concurrent.futures import ThreadPoolExecutor, wait as cf_wait, FIRST_COMPLETED
+    from concurrent.futures import ThreadPoolExecutor, wait as cf_wait
 
     tasks = {
-        "fear_greed":     lambda: fetch_fear_greed(),
-        "funding_rate":   lambda: fetch_funding_rate(ticker),
-        "mvrv":           lambda: fetch_mvrv(ticker),
-        "dxy":            lambda: fetch_dxy(),
-        "network_health": lambda: fetch_network_health(ticker),
-        "puell":          lambda: fetch_puell_multiple(ticker),
-        "btc_dominance":  lambda: fetch_btc_dominance(),
-        "interest_rate":  lambda: fetch_interest_rate(),
-        "cpi":            lambda: fetch_cpi(),
+        "fear_greed":     lambda: _timeout(fetch_fear_greed,                     8),
+        "funding_rate":   lambda: _timeout(lambda: fetch_funding_rate(ticker),   8),
+        "mvrv":           lambda: _timeout(lambda: fetch_mvrv(ticker),           8),
+        "dxy":            lambda: _timeout(fetch_dxy,                            8),
+        "network_health": lambda: _timeout(lambda: fetch_network_health(ticker), 8),
+        "puell":          lambda: _timeout(lambda: fetch_puell_multiple(ticker), 8),
+        "btc_dominance":  lambda: _timeout(fetch_btc_dominance,                 8),
+        "interest_rate":  lambda: _timeout(fetch_interest_rate,                  8),
+        "cpi":            lambda: _timeout(fetch_cpi,                            8),
     }
 
     pool = ThreadPoolExecutor(max_workers=9)
     futures = {pool.submit(fn): key for key, fn in tasks.items()}
 
-    done, _ = cf_wait(futures, timeout=20)
-
-    # Don't wait for hung threads — let them finish in background
+    # Each task is already bounded at 8s, so 12s outer cap is safety margin only
+    done, _ = cf_wait(futures, timeout=12)
     pool.shutdown(wait=False)
 
     results: dict = {}
@@ -281,7 +295,6 @@ def fetch_all(ticker: str = "BTC-USD") -> dict:
         except Exception:
             results[key] = pd.Series(dtype=float)
 
-    # Fill any keys that didn't finish within the timeout
     for key in tasks:
         if key not in results:
             results[key] = pd.Series(dtype=float)
