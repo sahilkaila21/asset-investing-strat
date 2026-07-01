@@ -34,8 +34,8 @@ function fmt(n: number, decimals = 2) {
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 function fmtUsd(n: number) {
-  if (n >= 1_000_000) return `$${fmt(n / 1_000_000)}M`;
-  if (n >= 1_000) return `$${fmt(n / 1_000)}K`;
+  if (n >= 1000000) return `$${fmt(n / 1000000)}M`;
+  if (n >= 1000) return `$${fmt(n / 1000)}K`;
   return `$${fmt(n)}`;
 }
 
@@ -558,7 +558,7 @@ function computeRiskScores(
 ): number[] {
   const closes = prices.map(([, p]) => p);
   const n = closes.length;
-  const MS_PER_DAY = 86_400_000;
+  const MS_PER_DAY = 86400000;
 
   // ── Factor 1: Valuation (w=12) ────────────────────────────────────────────
   const logPrice = closes.map((p) => Math.log(p));
@@ -710,7 +710,7 @@ function DynamicDCA() {
 
       // Warn if < 365 days from user start to now
       const msFromStart = now.getTime() - userStart.getTime();
-      const shortHistory = msFromStart < 365 * 86_400_000;
+      const shortHistory = msFromStart < 365 * 86400000;
 
       // Compute risk scores using 5-factor model (valuation, trend, structure, sentiment, fear & greed)
       const riskScores = computeRiskScores(prices, fgByDay);
@@ -760,7 +760,6 @@ function DynamicDCA() {
       const dynAvgBuyPrice = dynBuysMade > 0 ? dynSumBuyPrice / dynBuysMade : 0;
 
       // ── Normal DCA (weekly, same amount, same start) ──────────────────────
-      const MS_PER_DAY = 86400000;
       const priceMap = new Map<number, number>(
         prices.map(([ts, p]) => [Math.floor(ts / MS_PER_DAY), p])
       );
