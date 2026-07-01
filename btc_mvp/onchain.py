@@ -262,40 +262,40 @@ def fetch_cpi() -> pd.Series:
 
 def fetch_all(ticker: str = "BTC-USD") -> dict:
     """
-    Fetch all external data sources, each capped at 8 seconds via a daemon thread.
-    All 9 fetchers run in parallel threads. Total wall-clock time ≤ 8s regardless
-    of any individual source hanging (network stalls, yfinance blocking, etc.).
+    Run all fetchers in parallel daemon threads, each capped at 7 seconds.
+    Uses only stdlib threading — no concurrent.futures — for maximum portability.
+    Total wall-clock time ≤ 7s (all threads fire simultaneously).
     """
-    from concurrent.futures import ThreadPoolExecutor, wait as cf_wait
-
-    tasks = {
-        "fear_greed":     lambda: _timeout(fetch_fear_greed,                     8),
-        "funding_rate":   lambda: _timeout(lambda: fetch_funding_rate(ticker),   8),
-        "mvrv":           lambda: _timeout(lambda: fetch_mvrv(ticker),           8),
-        "dxy":            lambda: _timeout(fetch_dxy,                            8),
-        "network_health": lambda: _timeout(lambda: fetch_network_health(ticker), 8),
-        "puell":          lambda: _timeout(lambda: fetch_puell_multiple(ticker), 8),
-        "btc_dominance":  lambda: _timeout(fetch_btc_dominance,                 8),
-        "interest_rate":  lambda: _timeout(fetch_interest_rate,                  8),
-        "cpi":            lambda: _timeout(fetch_cpi,                            8),
+    fetchers = {
+        "fear_greed":     lambda: fetch_fear_greed(),
+        "funding_rate":   lambda: fetch_funding_rate(ticker),
+        "mvrv":           lambda: fetch_mvrv(ticker),
+        "dxy":            lambda: fetch_dxy(),
+        "network_health": lambda: fetch_network_health(ticker),
+        "puell":          lambda: fetch_puell_multiple(ticker),
+        "btc_dominance":  lambda: fetch_btc_dominance(),
+        "interest_rate":  lambda: fetch_interest_rate(),
+        "cpi":            lambda: fetch_cpi(),
     }
 
-    pool = ThreadPoolExecutor(max_workers=9)
-    futures = {pool.submit(fn): key for key, fn in tasks.items()}
-
-    # Each task is already bounded at 8s, so 12s outer cap is safety margin only
-    done, _ = cf_wait(futures, timeout=12)
-    pool.shutdown(wait=False)
-
     results: dict = {}
-    for future in done:
-        key = futures[future]
-        try:
-            results[key] = future.result()
-        except Exception:
-            results[key] = pd.Series(dtype=float)
 
-    for key in tasks:
+    def _run(key: str, fn) -> None:
+        results[key] = _timeout(fn, seconds=7)
+
+    threads = [
+        threading.Thread(target=_run, args=(k, fn), daemon=True)
+        for k, fn in fetchers.items()
+    ]
+    for t in threads:
+        t.start()
+
+    deadline = time.time() + 9          # 9s outer wall-clock cap
+    for t in threads:
+        remaining = max(0.0, deadline - time.time())
+        t.join(timeout=remaining)
+
+    for key in fetchers:
         if key not in results:
             results[key] = pd.Series(dtype=float)
 

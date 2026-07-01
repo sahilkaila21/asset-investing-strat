@@ -85,23 +85,36 @@ def get_price_data(ticker: str) -> pd.DataFrame:
 
 def get_external_data(ticker: str) -> dict:
     """
-    Fetch external data with a 4-hour session_state cache.
-    Bypasses st.cache_data to avoid its internal locking — a stale in-flight
-    cache entry from a hung call would block ALL subsequent requests.
+    Fetch external data in a daemon thread with a hard 10-second wall-clock cap.
+    Returns whatever loaded within 10s; anything still running is abandoned.
+    Result is stored in session_state (4-hour TTL) — no st.cache_data locking.
     """
+    import threading as _threading
     import time as _time
-    cache_key  = f"ext_{ticker}"
-    ts_key     = f"ext_{ticker}_ts"
-    TTL        = 4 * 3600  # 4 hours
 
-    cached_ts = st.session_state.get(ts_key, 0)
-    if _time.time() - cached_ts < TTL and cache_key in st.session_state:
+    cache_key = f"ext_{ticker}"
+    ts_key    = f"ext_{ticker}_ts"
+    TTL       = 4 * 3600
+
+    if _time.time() - st.session_state.get(ts_key, 0) < TTL and cache_key in st.session_state:
         return st.session_state[cache_key]
 
-    result = fetch_all(ticker)
-    st.session_state[cache_key] = result
+    bucket: list = [{}]
+
+    def _run():
+        try:
+            bucket[0] = fetch_all(ticker)
+        except Exception:
+            pass
+
+    t = _threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=10)          # hard cap — returns after 10s regardless
+
+    data = bucket[0]
+    st.session_state[cache_key] = data
     st.session_state[ts_key]    = _time.time()
-    return result
+    return data
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 # data_status from the PREVIOUS run is stored in session_state so the sidebar
