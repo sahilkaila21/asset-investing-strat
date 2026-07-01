@@ -74,11 +74,13 @@ def get_price_data(ticker: str) -> pd.DataFrame:
     return load_asset_data(ticker)
 
 @st.cache_data(ttl=14400, show_spinner=False, hash_funcs={})
-def get_external_data(ticker: str, _version: int = 3) -> dict:
+def get_external_data(ticker: str, _version: int = 4) -> dict:
     """_version bump forces cache invalidation when fetch_all schema changes."""
     return fetch_all(ticker)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
+
+# ── Sidebar part 1: asset selector (must run before data load) ────────────────
 
 with st.sidebar:
     st.markdown("## 📈 Risk Model")
@@ -87,77 +89,7 @@ with st.sidebar:
     ticker = SUPPORTED_ASSETS[asset_label]
     asset_short = asset_label.split("(")[-1].replace(")", "").strip()
 
-    st.divider()
-    st.caption("Weights auto-normalize to 100%.")
-
-    dw = DEFAULT_WEIGHTS
-
-    COMING_SOON_HTML = (
-        '<span style="background:#1e2336;border:1px solid #2a2f3e;border-radius:4px;'
-        'padding:2px 8px;font-size:0.7rem;color:#5a6175;letter-spacing:0.08em;'
-        'font-weight:600;text-transform:uppercase">Coming Soon</span>'
-    )
-
-    with st.expander("🔗 On-Chain", expanded=True):
-        st.markdown(f"**MVRV Score** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Market cap / realized cap — CoinMetrics integration pending.")
-        st.markdown(f"**Network Health** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Hash Rate + Active Addresses — CoinMetrics integration pending.")
-        st.markdown(f"**Puell Multiple** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Miner revenue / 365d avg — CoinMetrics integration pending.")
-        st.markdown(f"**Funding Rate** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Binance perp funding rate — Binance Futures integration pending.")
-
-    with st.expander("📊 Market & Sentiment", expanded=True):
-        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100), help="alternative.me composite. High greed = high risk.")
-        st.markdown(f"**BTC Dominance** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Low BTC dominance = altcoin euphoria — CoinGecko integration pending.")
-        w_trend     = st.slider("Trend",      0, 100, int(dw["trend"]*100),     help="RSI-14, price vs MA-20, price vs MA-200.")
-        w_sentiment = st.slider("Sentiment",  0, 100, int(dw["sentiment"]*100), help="Z-score of 30-day price return.")
-
-    with st.expander("💰 Price", expanded=True):
-        w_valuation = st.slider("Valuation", 0, 100, int(dw["valuation"]*100), help="Z-score of log price vs 365-day history.")
-        w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
-
-    with st.expander("🌍 Macro", expanded=True):
-        st.markdown(f"**Interest Rate** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("Fed Funds Rate — FRED API integration pending.")
-        st.markdown(f"**DXY (Dollar)** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("US Dollar Index — FRED/yfinance macro integration pending.")
-        st.markdown(f"**CPI Inflation** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption("CPI YoY % — FRED API integration pending.")
-
-    raw_weights = {
-        "mvrv": 0, "network_health": 0, "puell": 0,
-        "funding_rate": 0, "fear_greed": w_fear_greed,
-        "btc_dominance": 0, "trend": w_trend, "sentiment": w_sentiment,
-        "valuation": w_valuation, "structure": w_structure,
-        "interest_rate": 0, "dxy": 0, "cpi": 0,
-    }
-    total_w = sum(raw_weights.values())
-    if total_w == 0:
-        st.error("At least one weight must be > 0.")
-        st.stop()
-    weights = {k: v / total_w for k, v in raw_weights.items()}
-
-    st.divider()
-    with st.expander("⚙️ Strategy Settings", expanded=False):
-        buy_max  = st.slider("Max risk to buy", 1.0, 5.0, 3.0, step=0.5)
-        tier     = buy_max / 3
-        amt_high = st.number_input(f"$ when risk < {tier:.1f}",     value=600, step=50, min_value=0)
-        amt_mid  = st.number_input(f"$ when risk < {tier*2:.1f}",   value=400, step=50, min_value=0)
-        amt_low  = st.number_input(f"$ when risk < {buy_max:.1f}",  value=200, step=50, min_value=0)
-        sell_start = st.slider("Risk score to start selling", 4.0, 9.0, 6.0, step=0.5)
-
-    with st.expander("📅 Backtest Settings", expanded=False):
-        starting_cash    = st.number_input("Starting cash ($)", value=30_000, step=1_000, min_value=1_000)
-        display_start    = st.date_input("Display start",    value=pd.Timestamp("2020-01-01"))
-        deployment_start = st.date_input("Deployment start", value=pd.Timestamp("2026-06-01"))
-        benchmark_dca    = st.number_input("Benchmark DCA/week ($)", value=200, step=50, min_value=0)
-
-amounts = (float(amt_high), float(amt_mid), float(amt_low))
-
-# ── Load & run ────────────────────────────────────────────────────────────────
+# ── Load data (before weight sliders so sidebar can be data-driven) ───────────
 
 with st.spinner(f"Loading {asset_label} data…"):
     raw = get_price_data(ticker)
@@ -183,6 +115,124 @@ data_status = {
     "DXY":            _has_data("dxy"),
 }
 
+# ── Sidebar part 2: weight sliders (shown only when data is live) ─────────────
+
+with st.sidebar:
+    st.divider()
+    st.caption("Weights auto-normalize to 100%.")
+
+    dw = DEFAULT_WEIGHTS
+
+    COMING_SOON_HTML = (
+        '<span style="background:#1e2336;border:1px solid #2a2f3e;border-radius:4px;'
+        'padding:2px 8px;font-size:0.7rem;color:#5a6175;letter-spacing:0.08em;'
+        'font-weight:600;text-transform:uppercase">Coming Soon</span>'
+    )
+
+    def _cs(label: str, caption: str) -> None:
+        """Render a Coming Soon row with label + explanation."""
+        st.markdown(f"**{label}** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+        st.caption(caption)
+
+    with st.expander("🔗 On-Chain", expanded=True):
+        if data_status["MVRV"]:
+            w_mvrv = st.slider("MVRV Score", 0, 100, int(dw["mvrv"]*100),
+                               help="Market cap / realized cap. Best BTC cycle indicator.")
+        else:
+            _cs("MVRV Score", "Market cap / realized cap — CoinMetrics data pending.")
+            w_mvrv = 0
+
+        if data_status["Network Health"]:
+            w_network_health = st.slider("Network Health", 0, 100, int(dw["network_health"]*100),
+                                         help="Hash Rate + Active Addresses. High = healthy = lower risk.")
+        else:
+            _cs("Network Health", "Hash Rate + Active Addresses — CoinMetrics data pending.")
+            w_network_health = 0
+
+        if data_status["Puell"]:
+            w_puell = st.slider("Puell Multiple", 0, 100, int(dw["puell"]*100),
+                                help="Miner revenue / 365d avg. High (>4) = cycle top.")
+        else:
+            _cs("Puell Multiple", "Miner revenue / 365d avg — CoinMetrics data pending.")
+            w_puell = 0
+
+        if data_status["Funding Rate"]:
+            w_funding_rate = st.slider("Funding Rate", 0, 100, int(dw["funding_rate"]*100),
+                                       help="Perp funding rate. High positive = overleveraged longs.")
+        else:
+            _cs("Funding Rate", "Perp funding rate — requires longer historical dataset.")
+            w_funding_rate = 0
+
+    with st.expander("📊 Market & Sentiment", expanded=True):
+        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100),
+                                 help="alternative.me composite. High greed = high risk.")
+
+        if data_status["BTC Dominance"]:
+            w_btc_dominance = st.slider("BTC Dominance", 0, 100, int(dw["btc_dominance"]*100),
+                                        help="Low dominance = altcoin euphoria = late bull = high risk.")
+        else:
+            _cs("BTC Dominance", "BTC market cap share — CoinGecko data pending.")
+            w_btc_dominance = 0
+
+        w_trend     = st.slider("Trend",     0, 100, int(dw["trend"]*100),     help="RSI-14, price vs MA-20, price vs MA-200.")
+        w_sentiment = st.slider("Sentiment", 0, 100, int(dw["sentiment"]*100), help="Z-score of 30-day price return.")
+
+    with st.expander("💰 Price", expanded=True):
+        w_valuation = st.slider("Valuation", 0, 100, int(dw["valuation"]*100), help="Z-score of log price vs 365-day history.")
+        w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
+
+    with st.expander("🌍 Macro", expanded=True):
+        if data_status["Interest Rate"]:
+            w_interest_rate = st.slider("Interest Rate", 0, 100, int(dw["interest_rate"]*100),
+                                        help="Fed Funds Rate. High/rising = risk-off environment.")
+        else:
+            _cs("Interest Rate", "Fed Funds Rate — FRED data pending.")
+            w_interest_rate = 0
+
+        if data_status["DXY"]:
+            w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw["dxy"]*100),
+                              help="US Dollar Index. Strong dollar = headwind for crypto.")
+        else:
+            _cs("DXY (Dollar)", "US Dollar Index — yfinance data pending.")
+            w_dxy = 0
+
+        if data_status["CPI"]:
+            w_cpi = st.slider("CPI Inflation", 0, 100, int(dw["cpi"]*100),
+                              help="CPI YoY % (FRED). High inflation → rate hikes → risk-off.")
+        else:
+            _cs("CPI Inflation", "CPI YoY % — FRED data pending.")
+            w_cpi = 0
+
+    raw_weights = {
+        "mvrv": w_mvrv, "network_health": w_network_health, "puell": w_puell,
+        "funding_rate": w_funding_rate, "fear_greed": w_fear_greed,
+        "btc_dominance": w_btc_dominance, "trend": w_trend, "sentiment": w_sentiment,
+        "valuation": w_valuation, "structure": w_structure,
+        "interest_rate": w_interest_rate, "dxy": w_dxy, "cpi": w_cpi,
+    }
+    total_w = sum(raw_weights.values())
+    if total_w == 0:
+        st.error("At least one weight must be > 0.")
+        st.stop()
+    weights = {k: v / total_w for k, v in raw_weights.items()}
+
+    st.divider()
+    with st.expander("⚙️ Strategy Settings", expanded=False):
+        buy_max  = st.slider("Max risk to buy", 1.0, 5.0, 3.0, step=0.5)
+        tier     = buy_max / 3
+        amt_high = st.number_input(f"$ when risk < {tier:.1f}",     value=600, step=50, min_value=0)
+        amt_mid  = st.number_input(f"$ when risk < {tier*2:.1f}",   value=400, step=50, min_value=0)
+        amt_low  = st.number_input(f"$ when risk < {buy_max:.1f}",  value=200, step=50, min_value=0)
+        sell_start = st.slider("Risk score to start selling", 4.0, 9.0, 6.0, step=0.5)
+
+    with st.expander("📅 Backtest Settings", expanded=False):
+        starting_cash    = st.number_input("Starting cash ($)", value=30_000, step=1_000, min_value=1_000)
+        display_start    = st.date_input("Display start",    value=pd.Timestamp("2020-01-01"))
+        deployment_start = st.date_input("Deployment start", value=pd.Timestamp("2026-06-01"))
+        benchmark_dca    = st.number_input("Benchmark DCA/week ($)", value=200, step=50, min_value=0)
+
+amounts = (float(amt_high), float(amt_mid), float(amt_low))
+
 with st.spinner("Running risk model…"):
     factors = add_factors(raw, external=external)
     signals = add_risk_and_allocation(factors, weights=weights)
@@ -207,7 +257,8 @@ price_change  = (current_price - float(results["close"].iloc[-2])) / float(resul
 # ── Header ────────────────────────────────────────────────────────────────────
 
 st.markdown(f"## {asset_label} — Risk Model")
-st.caption("Risk-managed DCA strategy using 5 live signals. 8 additional factors coming soon.")
+live_count = sum(1 for v in data_status.values() if v) + 4  # +4 price-based always live
+st.caption(f"Risk-managed DCA strategy · {live_count} of 13 signals live · more activating as data confirms.")
 
 status_html = " &nbsp;·&nbsp; ".join(
     f'<span class="{"source-ok" if ok else "source-fail"}">{"✓" if ok else "–"} {name}</span>'

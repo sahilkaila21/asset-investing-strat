@@ -15,6 +15,14 @@ BINANCE_SYMBOL_MAP = {
     "XRP-USD": "XRPUSDT",
 }
 
+OKX_SYMBOL_MAP = {
+    "BTC-USD": "BTC-USDT-SWAP",
+    "ETH-USD": "ETH-USDT-SWAP",
+    "SOL-USD": "SOL-USDT-SWAP",
+    "BNB-USD": "BNB-USDT-SWAP",
+    "XRP-USD": "XRP-USDT-SWAP",
+}
+
 COINMETRICS_ASSET_MAP = {
     "BTC-USD": "btc",
     "ETH-USD": "eth",
@@ -37,7 +45,8 @@ COINGECKO_COIN_MAP = {
 def _get(url: str, params: dict | None = None, timeout: int = 20) -> requests.Response | None:
     try:
         resp = requests.get(url, params=params, timeout=timeout, headers={"accept": "application/json"})
-        return resp if resp.status_code == 200 else None
+        # Return response for 200 OR 429 (caller can check .status_code for retry logic)
+        return resp if resp.status_code in (200, 429) else None
     except Exception:
         return None
 
@@ -94,35 +103,39 @@ def fetch_fear_greed(limit: int = 2000) -> pd.Series:
 
 
 def fetch_funding_rate(ticker: str = "BTC-USD") -> pd.Series:
-    symbol = BINANCE_SYMBOL_MAP.get(ticker)
+    """
+    Fetch perpetual funding rate history from OKX (no API key required, no geo-block).
+    Paginates backward ~30 pages (~900 days) using cursor-based 'after' param.
+    """
+    symbol = OKX_SYMBOL_MAP.get(ticker)
     if not symbol:
         return pd.Series(dtype=float)
-    url = "https://fapi.binance.com/fapi/v1/fundingRate"
+    url = "https://www.okx.com/api/v5/public/funding-rate-history"
     all_records: list = []
-    end_time: int | None = None
+    cursor: str | None = None
     try:
-        for _ in range(20):
-            params: dict = {"symbol": symbol, "limit": 1000}
-            if end_time:
-                params["endTime"] = end_time
+        for _ in range(30):
+            params: dict = {"instId": symbol, "limit": 100}
+            if cursor:
+                params["after"] = cursor
             resp = _get(url, params=params)
             if resp is None:
                 break
-            records = resp.json()
+            records = resp.json().get("data", [])
             if not records:
                 break
             all_records.extend(records)
-            if len(records) < 1000:
+            if len(records) < 100:
                 break
-            end_time = int(records[0]["fundingTime"]) - 1
-            time.sleep(0.1)
+            cursor = str(min(int(r["fundingTime"]) for r in records))
+            time.sleep(0.15)
     except Exception:
         pass
     if not all_records:
         return pd.Series(dtype=float)
     df = pd.DataFrame(all_records)
     df["date"] = pd.to_datetime(df["fundingTime"].astype(int), unit="ms").dt.normalize()
-    df["fundingRate"] = df["fundingRate"].astype(float)
+    df["fundingRate"] = df["realizedRate"].astype(float)
     return df.groupby("date")["fundingRate"].mean().sort_index()
 
 
@@ -180,26 +193,32 @@ def fetch_puell_multiple(ticker: str = "BTC-USD") -> pd.Series:
 
 def fetch_btc_dominance(days: int = 1095) -> pd.Series:
     """
-    Approximates BTC dominance using market caps of BTC + top 4 non-stable coins.
+    Approximates BTC dominance using market caps of BTC + top 4 altcoins via CoinGecko.
     Low dominance = altcoin euphoria = late bull cycle = higher risk for all crypto.
+    Retries on 429 (rate limit) with exponential backoff.
     """
     coins = ["bitcoin", "ethereum", "binancecoin", "solana", "ripple"]
     caps: dict[str, pd.Series] = {}
 
     for coin in coins:
-        resp = _get(
-            f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart",
-            params={"vs_currency": "usd", "days": days, "interval": "daily"},
-        )
-        if resp is not None:
-            try:
-                mc_data = resp.json().get("market_caps", [])
-                df = pd.DataFrame(mc_data, columns=["ts", "mc"])
-                df["date"] = pd.to_datetime(df["ts"], unit="ms").dt.normalize()
-                caps[coin] = df.set_index("date")["mc"].astype(float)
-            except Exception:
-                pass
-        time.sleep(1.5)
+        for attempt in range(3):
+            resp = _get(
+                f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart",
+                params={"vs_currency": "usd", "days": days, "interval": "daily"},
+            )
+            if resp is not None and resp.status_code == 429:
+                time.sleep(30 * (attempt + 1))
+                continue
+            if resp is not None:
+                try:
+                    mc_data = resp.json().get("market_caps", [])
+                    df = pd.DataFrame(mc_data, columns=["ts", "mc"])
+                    df["date"] = pd.to_datetime(df["ts"], unit="ms").dt.normalize()
+                    caps[coin] = df.set_index("date")["mc"].astype(float)
+                except Exception:
+                    pass
+            break
+        time.sleep(2.5)
 
     if "bitcoin" not in caps:
         return pd.Series(dtype=float)
