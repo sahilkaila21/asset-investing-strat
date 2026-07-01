@@ -84,13 +84,27 @@ def get_price_data(ticker: str) -> pd.DataFrame:
     return load_asset_data(ticker)
 
 @st.cache_data(ttl=14400, show_spinner=False, hash_funcs={})
-def get_external_data(ticker: str, _version: int = 7) -> dict:
+def get_external_data(ticker: str, _version: int = 8) -> dict:
     """_version bump forces cache invalidation when fetch_all schema changes."""
     return fetch_all(ticker)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
+# data_status from the PREVIOUS run is stored in session_state so the sidebar
+# can render immediately without waiting for data fetches.
 
-# ── Sidebar part 1: asset selector (must run before data load) ────────────────
+_prev_ds = st.session_state.get("data_status", {})
+
+dw = DEFAULT_WEIGHTS
+
+COMING_SOON_HTML = (
+    '<span style="background:#1e2336;border:1px solid #2a2f3e;border-radius:4px;'
+    'padding:2px 8px;font-size:0.7rem;color:#5a6175;letter-spacing:0.08em;'
+    'font-weight:600;text-transform:uppercase">Coming Soon</span>'
+)
+
+def _cs(label: str, caption: str) -> None:
+    st.markdown(f"**{label}** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
+    st.caption(caption)
 
 with st.sidebar:
     st.markdown("## 📈 Risk Model")
@@ -99,87 +113,39 @@ with st.sidebar:
     ticker = SUPPORTED_ASSETS[asset_label]
     asset_short = asset_label.split("(")[-1].replace(")", "").strip()
 
-# ── Load data (before weight sliders so sidebar can be data-driven) ───────────
-
-with st.spinner(f"Loading {asset_label} data…"):
-    raw = get_price_data(ticker)
-
-with st.spinner("Fetching on-chain, market & macro data…"):
-    external = get_external_data(ticker)
-
-import pandas as _pd
-
-def _has_data(key: str) -> bool:
-    val = external.get(key, _pd.Series(dtype=float))
-    return not (val.empty if hasattr(val, "empty") else True)
-
-data_status = {
-    "Fear & Greed":   _has_data("fear_greed"),
-    "Funding Rate":   _has_data("funding_rate"),
-    "MVRV":           _has_data("mvrv"),
-    "Network Health": _has_data("network_health"),
-    "Puell":          _has_data("puell"),
-    "BTC Dominance":  _has_data("btc_dominance"),
-    "Interest Rate":  _has_data("interest_rate"),
-    "CPI":            _has_data("cpi"),
-    "DXY":            _has_data("dxy"),
-}
-
-# ── Sidebar part 2: weight sliders (shown only when data is live) ─────────────
-
-with st.sidebar:
     st.divider()
     st.caption("Weights auto-normalize to 100%.")
 
-    dw = DEFAULT_WEIGHTS
-
-    COMING_SOON_HTML = (
-        '<span style="background:#1e2336;border:1px solid #2a2f3e;border-radius:4px;'
-        'padding:2px 8px;font-size:0.7rem;color:#5a6175;letter-spacing:0.08em;'
-        'font-weight:600;text-transform:uppercase">Coming Soon</span>'
-    )
-
-    def _cs(label: str, caption: str) -> None:
-        """Render a Coming Soon row with label + explanation."""
-        st.markdown(f"**{label}** &nbsp; {COMING_SOON_HTML}", unsafe_allow_html=True)
-        st.caption(caption)
-
     with st.expander("🔗 On-Chain", expanded=True):
-        if data_status["MVRV"]:
-            w_mvrv = st.slider("MVRV Score", 0, 100, int(dw["mvrv"]*100),
-                               help="Market cap / realized cap. Best BTC cycle indicator.")
+        if _prev_ds.get("MVRV"):
+            w_mvrv = st.slider("MVRV Score", 0, 100, int(dw["mvrv"]*100), help="Market cap / realized cap.")
         else:
             _cs("MVRV Score", "Market cap / realized cap — CoinMetrics data pending.")
             w_mvrv = 0
 
-        if data_status["Network Health"]:
-            w_network_health = st.slider("Network Health", 0, 100, int(dw["network_health"]*100),
-                                         help="Hash Rate + Active Addresses. High = healthy = lower risk.")
+        if _prev_ds.get("Network Health"):
+            w_network_health = st.slider("Network Health", 0, 100, int(dw["network_health"]*100), help="Hash Rate + Active Addresses.")
         else:
             _cs("Network Health", "Hash Rate + Active Addresses — CoinMetrics data pending.")
             w_network_health = 0
 
-        if data_status["Puell"]:
-            w_puell = st.slider("Puell Multiple", 0, 100, int(dw["puell"]*100),
-                                help="Miner revenue / 365d avg. High (>4) = cycle top.")
+        if _prev_ds.get("Puell"):
+            w_puell = st.slider("Puell Multiple", 0, 100, int(dw["puell"]*100), help="Miner revenue / 365d avg.")
         else:
             _cs("Puell Multiple", "Miner revenue / 365d avg — CoinMetrics data pending.")
             w_puell = 0
 
-        if data_status["Funding Rate"]:
-            w_funding_rate = st.slider("Funding Rate", 0, 100, int(dw["funding_rate"]*100),
-                                       help="Perp funding rate. High positive = overleveraged longs.")
+        if _prev_ds.get("Funding Rate"):
+            w_funding_rate = st.slider("Funding Rate", 0, 100, int(dw["funding_rate"]*100), help="Perp funding rate.")
         else:
             _cs("Funding Rate", "Perp funding rate — requires longer historical dataset.")
             w_funding_rate = 0
 
     with st.expander("📊 Market & Sentiment", expanded=True):
-        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100),
-                                 help="alternative.me composite. High greed = high risk.")
+        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100), help="alternative.me composite. High greed = high risk.")
 
-        if data_status["BTC Dominance"]:
-            w_btc_dominance = st.slider("BTC Dominance", 0, 100, int(dw["btc_dominance"]*100),
-                                        help="Low dominance = altcoin euphoria = late bull = high risk.")
+        if _prev_ds.get("BTC Dominance"):
+            w_btc_dominance = st.slider("BTC Dominance", 0, 100, int(dw["btc_dominance"]*100), help="Low dominance = altcoin euphoria = late bull = high risk.")
         else:
             _cs("BTC Dominance", "BTC market cap share — CoinGecko data pending.")
             w_btc_dominance = 0
@@ -192,23 +158,20 @@ with st.sidebar:
         w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
 
     with st.expander("🌍 Macro", expanded=True):
-        if data_status["Interest Rate"]:
-            w_interest_rate = st.slider("Interest Rate", 0, 100, int(dw["interest_rate"]*100),
-                                        help="Fed Funds Rate. High/rising = risk-off environment.")
+        if _prev_ds.get("Interest Rate"):
+            w_interest_rate = st.slider("Interest Rate", 0, 100, int(dw["interest_rate"]*100), help="Fed Funds Rate.")
         else:
             _cs("Interest Rate", "Fed Funds Rate — FRED data pending.")
             w_interest_rate = 0
 
-        if data_status["DXY"]:
-            w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw["dxy"]*100),
-                              help="US Dollar Index. Strong dollar = headwind for crypto.")
+        if _prev_ds.get("DXY"):
+            w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw["dxy"]*100), help="US Dollar Index.")
         else:
             _cs("DXY (Dollar)", "US Dollar Index — yfinance data pending.")
             w_dxy = 0
 
-        if data_status["CPI"]:
-            w_cpi = st.slider("CPI Inflation", 0, 100, int(dw["cpi"]*100),
-                              help="CPI YoY % (FRED). High inflation → rate hikes → risk-off.")
+        if _prev_ds.get("CPI"):
+            w_cpi = st.slider("CPI Inflation", 0, 100, int(dw["cpi"]*100), help="CPI YoY %.")
         else:
             _cs("CPI Inflation", "CPI YoY % — FRED data pending.")
             w_cpi = 0
@@ -242,6 +205,35 @@ with st.sidebar:
         benchmark_dca    = st.number_input("Benchmark DCA/week ($)", value=200, step=50, min_value=0)
 
 amounts = (float(amt_high), float(amt_mid), float(amt_low))
+
+# ── Load data ─────────────────────────────────────────────────────────────────
+
+with st.spinner(f"Loading {asset_label} data…"):
+    raw = get_price_data(ticker)
+
+with st.spinner("Fetching on-chain, market & macro data…"):
+    external = get_external_data(ticker)
+
+def _has_data(key: str) -> bool:
+    val = external.get(key, pd.Series(dtype=float))
+    return not (val.empty if hasattr(val, "empty") else True)
+
+data_status = {
+    "Fear & Greed":   _has_data("fear_greed"),
+    "Funding Rate":   _has_data("funding_rate"),
+    "MVRV":           _has_data("mvrv"),
+    "Network Health": _has_data("network_health"),
+    "Puell":          _has_data("puell"),
+    "BTC Dominance":  _has_data("btc_dominance"),
+    "Interest Rate":  _has_data("interest_rate"),
+    "CPI":            _has_data("cpi"),
+    "DXY":            _has_data("dxy"),
+}
+
+# Persist data_status for next render so sidebar sliders update automatically
+st.session_state["data_status"] = data_status
+
+# ── Run model ─────────────────────────────────────────────────────────────────
 
 with st.spinner("Running risk model…"):
     factors = add_factors(raw, external=external)
