@@ -74,7 +74,7 @@ def get_price_data(ticker: str) -> pd.DataFrame:
     return load_asset_data(ticker)
 
 @st.cache_data(ttl=14400, show_spinner=False, hash_funcs={})
-def get_external_data(ticker: str, _version: int = 4) -> dict:
+def get_external_data(ticker: str, _version: int = 5) -> dict:
     """_version bump forces cache invalidation when fetch_all schema changes."""
     return fetch_all(ticker)
 

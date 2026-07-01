@@ -128,7 +128,7 @@ def fetch_funding_rate(ticker: str = "BTC-USD") -> pd.Series:
             if len(records) < 100:
                 break
             cursor = str(min(int(r["fundingTime"]) for r in records))
-            time.sleep(0.15)
+            time.sleep(0.05)
     except Exception:
         pass
     if not all_records:
@@ -207,7 +207,7 @@ def fetch_btc_dominance(days: int = 1095) -> pd.Series:
                 params={"vs_currency": "usd", "days": days, "interval": "daily"},
             )
             if resp is not None and resp.status_code == 429:
-                time.sleep(30 * (attempt + 1))
+                time.sleep(8 * (attempt + 1))
                 continue
             if resp is not None:
                 try:
@@ -218,7 +218,7 @@ def fetch_btc_dominance(days: int = 1095) -> pd.Series:
                 except Exception:
                     pass
             break
-        time.sleep(2.5)
+        time.sleep(1.0)
 
     if "bitcoin" not in caps:
         return pd.Series(dtype=float)
@@ -247,14 +247,34 @@ def fetch_cpi() -> pd.Series:
 # ── Bundle ────────────────────────────────────────────────────────────────────
 
 def fetch_all(ticker: str = "BTC-USD") -> dict:
-    return {
-        "fear_greed":      fetch_fear_greed(),
-        "funding_rate":    fetch_funding_rate(ticker),
-        "mvrv":            fetch_mvrv(ticker),
-        "dxy":             fetch_dxy(),
-        "network_health":  fetch_network_health(ticker),
-        "puell":           fetch_puell_multiple(ticker),
-        "btc_dominance":   fetch_btc_dominance(),
-        "interest_rate":   fetch_interest_rate(),
-        "cpi":             fetch_cpi(),
+    """Fetch all external data sources in parallel (max 30s wall-clock timeout)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    tasks = {
+        "fear_greed":     lambda: fetch_fear_greed(),
+        "funding_rate":   lambda: fetch_funding_rate(ticker),
+        "mvrv":           lambda: fetch_mvrv(ticker),
+        "dxy":            lambda: fetch_dxy(),
+        "network_health": lambda: fetch_network_health(ticker),
+        "puell":          lambda: fetch_puell_multiple(ticker),
+        "btc_dominance":  lambda: fetch_btc_dominance(),
+        "interest_rate":  lambda: fetch_interest_rate(),
+        "cpi":            lambda: fetch_cpi(),
     }
+
+    results: dict = {}
+    with ThreadPoolExecutor(max_workers=9) as pool:
+        futures = {pool.submit(fn): key for key, fn in tasks.items()}
+        for future in as_completed(futures, timeout=30):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception:
+                results[key] = pd.Series(dtype=float)
+
+    # Fill any keys that timed out
+    for key in tasks:
+        if key not in results:
+            results[key] = pd.Series(dtype=float)
+
+    return results
