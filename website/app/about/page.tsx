@@ -23,29 +23,6 @@ export default function AboutPage() {
           <em> why</em> — until the answers started paying off.
         </p>
 
-        {/* Founder byline */}
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 14,
-          background: "rgba(79,124,255,0.07)", border: "1px solid rgba(79,124,255,0.2)",
-          borderRadius: 12, padding: "12px 20px",
-        }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: "50%",
-            background: "linear-gradient(135deg, #4f7cff 0%, #34d399 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 800, fontSize: "1rem", color: "#fff", flexShrink: 0,
-          }}>
-            SK
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)", letterSpacing: "-0.01em" }}>
-              Sahil Kaila
-            </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
-              Solutions Architect &amp; Data Analyst · Founder, Alphabit
-            </div>
-          </div>
-        </div>
       </div>
 
       <Divider />
@@ -159,6 +136,44 @@ export default function AboutPage() {
           ))}
         </ul>
       </Section>
+
+      <Divider />
+
+      {/* Team */}
+      <section style={{ marginBottom: 8 }}>
+        <p style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--blue)", marginBottom: 24 }}>
+          The Team
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+          {[
+            { initials: "SK", name: "Sahil Kaila", role: "Founder", gradient: "linear-gradient(135deg, #4f7cff 0%, #34d399 100%)" },
+            { initials: "H",  name: "Haylen",      role: "Data Engineer", gradient: "linear-gradient(135deg, #a78bfa 0%, #4f7cff 100%)" },
+          ].map(({ initials, name, role, gradient }) => (
+            <div key={name} style={{
+              display: "flex", alignItems: "center", gap: 16,
+              background: "#161b27", border: "1px solid var(--border)",
+              borderRadius: 14, padding: "20px 24px",
+            }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: "50%",
+                background: gradient,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: "1.05rem", color: "#fff", flexShrink: 0,
+              }}>
+                {initials}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text)", letterSpacing: "-0.01em" }}>
+                  {name}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 3 }}>
+                  {role}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <Divider />
 
