@@ -42,10 +42,9 @@ COINGECKO_COIN_MAP = {
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _get(url: str, params: dict | None = None, timeout: int = 20) -> requests.Response | None:
+def _get(url: str, params: dict | None = None, timeout: int = 8) -> requests.Response | None:
     try:
         resp = requests.get(url, params=params, timeout=timeout, headers={"accept": "application/json"})
-        # Return response for 200 OR 429 (caller can check .status_code for retry logic)
         return resp if resp.status_code in (200, 429) else None
     except Exception:
         return None
@@ -114,7 +113,7 @@ def fetch_funding_rate(ticker: str = "BTC-USD") -> pd.Series:
     all_records: list = []
     cursor: str | None = None
     try:
-        for _ in range(30):
+        for _ in range(10):
             params: dict = {"instId": symbol, "limit": 100}
             if cursor:
                 params["after"] = cursor
@@ -218,7 +217,7 @@ def fetch_btc_dominance(days: int = 1095) -> pd.Series:
                 except Exception:
                     pass
             break
-        time.sleep(1.0)
+        time.sleep(0.5)
 
     if "bitcoin" not in caps:
         return pd.Series(dtype=float)
@@ -247,8 +246,12 @@ def fetch_cpi() -> pd.Series:
 # ── Bundle ────────────────────────────────────────────────────────────────────
 
 def fetch_all(ticker: str = "BTC-USD") -> dict:
-    """Fetch all external data sources in parallel (max 30s wall-clock timeout)."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    """
+    Fetch all external data sources in parallel.
+    Hard wall-clock cap: 20s. Any source not done by then gets an empty Series.
+    Uses shutdown(wait=False) so hung network threads never block the return.
+    """
+    from concurrent.futures import ThreadPoolExecutor, wait as cf_wait, FIRST_COMPLETED
 
     tasks = {
         "fear_greed":     lambda: fetch_fear_greed(),
@@ -262,17 +265,23 @@ def fetch_all(ticker: str = "BTC-USD") -> dict:
         "cpi":            lambda: fetch_cpi(),
     }
 
-    results: dict = {}
-    with ThreadPoolExecutor(max_workers=9) as pool:
-        futures = {pool.submit(fn): key for key, fn in tasks.items()}
-        for future in as_completed(futures, timeout=30):
-            key = futures[future]
-            try:
-                results[key] = future.result()
-            except Exception:
-                results[key] = pd.Series(dtype=float)
+    pool = ThreadPoolExecutor(max_workers=9)
+    futures = {pool.submit(fn): key for key, fn in tasks.items()}
 
-    # Fill any keys that timed out
+    done, _ = cf_wait(futures, timeout=20)
+
+    # Don't wait for hung threads — let them finish in background
+    pool.shutdown(wait=False)
+
+    results: dict = {}
+    for future in done:
+        key = futures[future]
+        try:
+            results[key] = future.result()
+        except Exception:
+            results[key] = pd.Series(dtype=float)
+
+    # Fill any keys that didn't finish within the timeout
     for key in tasks:
         if key not in results:
             results[key] = pd.Series(dtype=float)
