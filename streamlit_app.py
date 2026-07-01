@@ -74,6 +74,59 @@ st.markdown("""
         opacity: 1 !important;
         pointer-events: auto !important;
     }
+
+    /* Make the collapsed sidebar expand handle large and obvious */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"] {
+        position: fixed !important;
+        left: 0 !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 28px !important;
+        min-height: 72px !important;
+        height: 72px !important;
+        background: #1e2540 !important;
+        border: 1px solid #3a4060 !important;
+        border-left: none !important;
+        border-radius: 0 8px 8px 0 !important;
+        box-shadow: 3px 0 12px rgba(0,0,0,0.4) !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* The chevron/arrow icon inside the collapsed handle */
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] button,
+    [data-testid="collapsedControl"] button {
+        color: #c9d1e0 !important;
+        width: 18px !important;
+        height: 18px !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Expand icon button — make the whole area clickable */
+    [data-testid="stSidebarCollapsedControl"] > *,
+    [data-testid="collapsedControl"] > * {
+        width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+    }
+
+    /* Hover highlight */
+    [data-testid="stSidebarCollapsedControl"]:hover,
+    [data-testid="collapsedControl"]:hover {
+        background: #2a3358 !important;
+        border-color: #4f7cff !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
