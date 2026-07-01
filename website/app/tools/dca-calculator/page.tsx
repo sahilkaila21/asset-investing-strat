@@ -83,7 +83,7 @@ function DCACalculator() {
       if (!prices.length) throw new Error("No price data returned for this date range.");
 
       // Build a map of day-key → close price for fast lookup
-      const MS_PER_DAY = 86_400_000;
+      const MS_PER_DAY = 86400000;
       const priceMap = new Map<number, number>(
         prices.map(([ts, price]) => [Math.floor(ts / MS_PER_DAY), price])
       );
@@ -677,7 +677,7 @@ function DynamicDCA() {
     setResult(null);
 
     try {
-      const MS_PER_DAY = 86_400_000;
+      const MS_PER_DAY = 86400000;
 
       // Fetch prices and Fear & Greed in parallel
       const [priceRes, fgRes] = await Promise.all([
@@ -760,7 +760,7 @@ function DynamicDCA() {
       const dynAvgBuyPrice = dynBuysMade > 0 ? dynSumBuyPrice / dynBuysMade : 0;
 
       // ── Normal DCA (weekly, same amount, same start) ──────────────────────
-      const MS_PER_DAY = 86_400_000;
+      const MS_PER_DAY = 86400000;
       const priceMap = new Map<number, number>(
         prices.map(([ts, p]) => [Math.floor(ts / MS_PER_DAY), p])
       );
