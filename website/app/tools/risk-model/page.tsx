@@ -1,5 +1,7 @@
 import Link from "next/link";
 import data from "@/lib/risk-model-data.json";
+import RiskHistoryChart from "@/components/RiskHistoryChart";
+import RiskModelAdvanced from "@/components/RiskModelAdvanced";
 
 export const metadata = {
   title: "Risk Model — Alphabit",
@@ -66,51 +68,6 @@ function Gauge({ score, color }: { score: number; color: string }) {
   );
 }
 
-/** SVG line chart of weekly composite score, with zone bands + 3/6 thresholds. */
-function HistoryChart({ history }: { history: { date: string; score: number }[] }) {
-  const W = 820;
-  const H = 240;
-  const n = history.length;
-  const x = (i: number) => (i / (n - 1)) * W;
-  const y = (s: number) => H - (s / 10) * H;
-  const line = history.map((d, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(d.score).toFixed(1)}`).join(" ");
-
-  // year gridlines
-  const years: { i: number; label: string }[] = [];
-  let lastYear = "";
-  history.forEach((d, i) => {
-    const yr = d.date.slice(0, 4);
-    if (yr !== lastYear) {
-      years.push({ i, label: yr });
-      lastYear = yr;
-    }
-  });
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%" }} preserveAspectRatio="none">
-      {/* zone bands */}
-      <rect x="0" y={y(3)} width={W} height={H - y(3)} fill="var(--green)" opacity="0.06" />
-      <rect x="0" y={y(6)} width={W} height={y(3) - y(6)} fill="#facc15" opacity="0.05" />
-      <rect x="0" y="0" width={W} height={y(6)} fill="var(--red)" opacity="0.06" />
-      {/* threshold lines */}
-      {[3, 6].map((t) => (
-        <g key={t}>
-          <line x1="0" y1={y(t)} x2={W} y2={y(t)} stroke="var(--border)" strokeWidth="1" strokeDasharray="4 4" />
-          <text x="6" y={y(t) - 4} style={{ fill: "var(--muted)", fontSize: "11px" }}>{t}</text>
-        </g>
-      ))}
-      {/* year ticks */}
-      {years.map((yr) => (
-        <text key={yr.label} x={x(yr.i)} y={H + 18} textAnchor="middle" style={{ fill: "var(--muted)", fontSize: "11px" }}>
-          {yr.label}
-        </text>
-      ))}
-      {/* score line */}
-      <path d={line} fill="none" stroke="var(--blue)" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
 function ValueBar({ value }: { value: number }) {
   return (
     <div style={{ flex: 1, height: 6, backgroundColor: "var(--bg)", borderRadius: 3, overflow: "hidden", minWidth: 70 }}>
@@ -127,7 +84,7 @@ export default function RiskModelPage() {
     score: number;
     zone: { key: string; label: string; color: string };
     factors: Factor[];
-    history: { date: string; score: number }[];
+    history: { date: string; score: number; price: number }[];
     dataNotes: { feedsDefaulted: string[] };
   };
   const zoneColor = ZONE_COLORS[d.zone.color] ?? "var(--blue)";
@@ -206,8 +163,8 @@ export default function RiskModelPage() {
       <section style={{ marginBottom: 44 }}>
         <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: 4 }}>Risk score over time</h2>
         <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: 18 }}>Weekly composite, {d.history[0]?.date.slice(0, 4)}–present.</p>
-        <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 20px 8px" }}>
-          <HistoryChart history={d.history} />
+        <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 20px 12px" }}>
+          <RiskHistoryChart history={d.history} />
         </div>
       </section>
 
@@ -249,6 +206,9 @@ export default function RiskModelPage() {
           </div>
         ))}
       </section>
+
+      {/* Advanced: Pro-gated weight tuning */}
+      <RiskModelAdvanced factors={d.factors} baseScore={d.score} />
 
       {/* CTA / footer */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>

@@ -98,11 +98,15 @@ def main() -> None:
             "contribution": round(w * value / 10, 3),  # points added to the 0-10 score
         })
 
-    # Weekly history of the composite score
-    weekly = signals["risk_score"].resample("W-SUN").last().dropna()
+    # Weekly history of the composite score + BTC close (for the interactive chart)
+    weekly = signals[["risk_score", "close"]].resample("W-SUN").last().dropna()
     history = [
-        {"date": idx.strftime("%Y-%m-%d"), "score": round(float(v), 2)}
-        for idx, v in weekly.items()
+        {
+            "date": idx.strftime("%Y-%m-%d"),
+            "score": round(float(row["risk_score"]), 2),
+            "price": round(float(row["close"]), 2),
+        }
+        for idx, row in weekly.iterrows()
     ]
 
     out = {
