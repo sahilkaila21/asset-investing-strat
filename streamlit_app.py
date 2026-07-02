@@ -232,50 +232,50 @@ with st.sidebar:
 
     with st.expander("🔗 On-Chain", expanded=True):
         if _prev_ds.get("MVRV"):
-            w_mvrv = st.slider("MVRV Score", 0, 100, int(dw["mvrv"]*100), help="Market cap / realized cap.")
+            w_mvrv = st.slider("MVRV Score", 0, 100, int(dw.get("mvrv", 0)*100), help="Market cap / realized cap.")
         else:
             _cs("MVRV Score", "Market cap / realized cap — CoinMetrics data pending.")
             w_mvrv = 0
 
         if _prev_ds.get("Network Health"):
-            w_network_health = st.slider("Network Health", 0, 100, int(dw["network_health"]*100), help="Hash Rate + Active Addresses.")
+            w_network_health = st.slider("Network Health", 0, 100, int(dw.get("network_health", 0)*100), help="Hash Rate + Active Addresses.")
         else:
             _cs("Network Health", "Hash Rate + Active Addresses — CoinMetrics data pending.")
             w_network_health = 0
 
         if _prev_ds.get("Puell"):
-            w_puell = st.slider("Puell Multiple", 0, 100, int(dw["puell"]*100), help="Miner revenue / 365d avg.")
+            w_puell = st.slider("Puell Multiple", 0, 100, int(dw.get("puell", 0)*100), help="Miner revenue / 365d avg.")
         else:
             _cs("Puell Multiple", "Miner revenue / 365d avg — CoinMetrics data pending.")
             w_puell = 0
 
     with st.expander("📊 Market & Sentiment", expanded=True):
-        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100), help="alternative.me composite. High greed = high risk.")
+        w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw.get("fear_greed", 0)*100), help="alternative.me composite. High greed = high risk.")
 
         if _prev_ds.get("BTC Dominance"):
-            w_btc_dominance = st.slider("BTC Dominance", 0, 100, int(dw["btc_dominance"]*100), help="Low dominance = altcoin euphoria = late bull = high risk.")
+            w_btc_dominance = st.slider("BTC Dominance", 0, 100, int(dw.get("btc_dominance", 0)*100), help="Low dominance = altcoin euphoria = late bull = high risk.")
         else:
             _cs("BTC Dominance", "BTC market cap share — CoinGecko data pending.")
             w_btc_dominance = 0
 
-        w_trend     = st.slider("Trend",     0, 100, int(dw["trend"]*100),     help="RSI-14, price vs MA-20, price vs MA-200.")
-        w_sentiment = st.slider("Sentiment", 0, 100, int(dw["sentiment"]*100), help="Z-score of 30-day price return.")
+        w_trend     = st.slider("Trend",     0, 100, int(dw.get("trend", 0)*100),     help="RSI-14, price vs MA-20, price vs MA-200.")
+        w_sentiment = st.slider("Sentiment", 0, 100, int(dw.get("sentiment", 0)*100), help="Z-score of 30-day price return.")
 
     with st.expander("💰 Price", expanded=True):
-        w_valuation = st.slider("Valuation", 0, 100, int(dw["valuation"]*100), help="Z-score of log price vs 365-day history.")
-        w_pi_cycle  = st.slider("Pi-Cycle Top", 0, 100, int(dw["pi_cycle"]*100), help="111-day MA vs 2x 350-day MA. Approaches 1 at cycle tops.")
-        w_mayer     = st.slider("Mayer Multiple", 0, 100, int(dw["mayer"]*100), help="Price / 200-day MA. High = overextended.")
-        w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
+        w_valuation = st.slider("Valuation", 0, 100, int(dw.get("valuation", 0)*100), help="Z-score of log price vs 365-day history.")
+        w_pi_cycle  = st.slider("Pi-Cycle Top", 0, 100, int(dw.get("pi_cycle", 0)*100), help="111-day MA vs 2x 350-day MA. Approaches 1 at cycle tops.")
+        w_mayer     = st.slider("Mayer Multiple", 0, 100, int(dw.get("mayer", 0)*100), help="Price / 200-day MA. High = overextended.")
+        w_structure = st.slider("Structure", 0, 100, int(dw.get("structure", 0)*100), help="Annualized 30-day volatility. High vol = high risk.")
 
     with st.expander("🌍 Macro", expanded=True):
         if _prev_ds.get("DXY"):
-            w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw["dxy"]*100), help="US Dollar Index.")
+            w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw.get("dxy", 0)*100), help="US Dollar Index.")
         else:
             _cs("DXY (Dollar)", "US Dollar Index — yfinance data pending.")
             w_dxy = 0
 
         if _prev_ds.get("CPI"):
-            w_cpi = st.slider("CPI Inflation", 0, 100, int(dw["cpi"]*100), help="CPI YoY %.")
+            w_cpi = st.slider("CPI Inflation", 0, 100, int(dw.get("cpi", 0)*100), help="CPI YoY %.")
         else:
             _cs("CPI Inflation", "CPI YoY % — FRED data pending.")
             w_cpi = 0
