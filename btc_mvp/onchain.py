@@ -102,8 +102,10 @@ def _fred(series_id: str) -> pd.Series:
         return pd.Series(dtype=float)
     try:
         from io import StringIO
-        df = pd.read_csv(StringIO(resp.text), parse_dates=["DATE"], index_col="DATE", na_values=".")
-        df.index = df.index.normalize()
+        # FRED renamed the date column from "DATE" to "observation_date" — parse
+        # the first column as the date index regardless of its header.
+        df = pd.read_csv(StringIO(resp.text), index_col=0, parse_dates=True, na_values=".")
+        df.index = pd.DatetimeIndex(df.index).normalize()
         return df.iloc[:, 0].dropna().astype(float).sort_index()
     except Exception:
         return pd.Series(dtype=float)
@@ -212,18 +214,45 @@ def fetch_puell_multiple(ticker: str = "BTC-USD") -> pd.Series:
     return puell.replace([np.inf, -np.inf], np.nan).dropna()
 
 
-def fetch_btc_dominance(days: int = 1095) -> pd.Series:
+def fetch_btc_dominance(days: int = 365) -> pd.Series:
     """
-    BTC dominance approximated from BTC vs ETH market caps (2 CoinGecko calls).
-    Using only 2 coins keeps total fetch time under 3s.
+    BTC dominance approximated from BTC vs ETH market caps.
+    Primary source: CoinMetrics CapMrktCurUSD (full history since 2013, one call).
+    Fallback: CoinGecko, limited to 365 days on the free public API.
     Low BTC dominance = altcoin euphoria = late bull cycle = higher risk.
     """
-    caps: dict[str, pd.Series] = {}
+    resp = _get(
+        "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics",
+        params={
+            "assets": "btc,eth",
+            "metrics": "CapMrktCurUSD",
+            "frequency": "1d",
+            "start_time": "2013-01-01",
+            "page_size": 10000,
+        },
+    )
+    if resp is not None:
+        try:
+            data = resp.json().get("data", [])
+            if data:
+                df = pd.DataFrame(data)
+                df["date"] = pd.to_datetime(df["time"]).dt.tz_localize(None).dt.normalize()
+                df["mc"] = pd.to_numeric(df["CapMrktCurUSD"], errors="coerce")
+                pivot = df.pivot_table(index="date", columns="asset", values="mc")
+                if "btc" in pivot.columns:
+                    total = pivot.sum(axis=1)
+                    dom = (pivot["btc"] / total * 100).dropna().sort_index()
+                    if not dom.empty:
+                        return dom
+        except Exception:
+            pass
 
+    # Fallback: CoinGecko (free public API caps range at 365 days)
+    caps: dict[str, pd.Series] = {}
     for coin in ["bitcoin", "ethereum"]:
         resp = _get(
             f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart",
-            params={"vs_currency": "usd", "days": days, "interval": "daily"},
+            params={"vs_currency": "usd", "days": min(days, 365), "interval": "daily"},
         )
         if resp is not None and resp.status_code == 200:
             try:

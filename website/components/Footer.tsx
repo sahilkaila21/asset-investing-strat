@@ -28,25 +28,58 @@ export default function Footer() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
           {[
-            { href: "/tools/risk-model",     label: "Risk Model" },
-            { href: "/tools/fear-greed",     label: "Fear & Greed" },
-            { href: "/tools/macro",          label: "Macro" },
-            { href: "/tools/dca-calculator", label: "DCA Calculator" },
-            { href: "/tools/portfolio",      label: "Portfolio" },
-            { href: "/tools/whale-tracker",  label: "Whale Tracker" },
-            { href: "/pricing",              label: "Pricing" },
-            { href: "/about",               label: "Our Story" },
-          ].map((l) => (
-            <Link key={l.href} href={l.href} style={{ color: "var(--muted)", fontSize: "0.85rem", textDecoration: "none" }}>
-              {l.label}
-            </Link>
+            {
+              heading: "Tools",
+              links: [
+                { href: "/tools/risk-model",     label: "Risk Model" },
+                { href: "/tools/fear-greed",     label: "Fear & Greed" },
+                { href: "/tools/macro",          label: "Macro" },
+                { href: "/tools/dca-calculator", label: "DCA Calculator" },
+                { href: "/tools/portfolio",      label: "Portfolio" },
+                { href: "/tools/whale-tracker",  label: "Whale Tracker" },
+              ],
+            },
+            {
+              heading: "Company",
+              links: [
+                { href: "/methodology", label: "Methodology" },
+                { href: "/pricing",     label: "Pricing" },
+                { href: "/about",       label: "Our Story" },
+                { href: "/faq",         label: "FAQ" },
+              ],
+            },
+            {
+              heading: "Trust",
+              links: [
+                { href: "/security",         label: "Security" },
+                { href: "/legal/privacy",    label: "Privacy" },
+                { href: "/legal/terms",      label: "Terms" },
+                { href: "/legal/disclosure", label: "Disclosure" },
+              ],
+            },
+          ].map((col) => (
+            <div key={col.heading}>
+              <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 10 }}>
+                {col.heading}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {col.links.map((l) => (
+                  <Link key={l.href} href={l.href} style={{ color: "var(--muted)", fontSize: "0.85rem", textDecoration: "none" }}>
+                    {l.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 
-        <div style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
-          © {new Date().getFullYear()} Alphabit. For informational purposes only.
+        <div style={{ color: "var(--muted)", fontSize: "0.78rem", maxWidth: 260 }}>
+          © {new Date().getFullYear()} Alphabit. Not financial advice — see our{" "}
+          <Link href="/legal/disclosure" style={{ color: "var(--muted)", textDecoration: "underline" }}>
+            full disclosure
+          </Link>.
         </div>
       </div>
     </footer>
