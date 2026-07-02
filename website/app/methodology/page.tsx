@@ -16,36 +16,16 @@ type Factor = {
 
 const FACTOR_GROUPS: { group: string; blurb: string; factors: Factor[] }[] = [
   {
-    group: "On-chain",
-    blurb: "Signals derived from blockchain data itself — what holders, miners, and the network are actually doing.",
+    group: "Tier 1 — Valuation core (56%)",
+    blurb: "The factors that most reliably discriminate cycle tops from bottoms in historical testing. These carry the majority of the weight.",
     factors: [
       {
         name: "MVRV Ratio",
-        weight: 0.14,
+        weight: 0.16,
         source: "CoinMetrics",
         reads: "Market cap vs. realized cap (aggregate cost basis)",
-        why: "When price runs far above what holders collectively paid, historically more of them take profit. The single largest weight in the model.",
+        why: "When price runs far above what holders collectively paid, historically more of them take profit. The single largest weight, and the strongest single discriminator of bottoms.",
       },
-      {
-        name: "Network Health",
-        weight: 0.08,
-        source: "CoinMetrics",
-        reads: "Hash rate + active addresses, averaged",
-        why: "A network with rising security spend and real usage is structurally healthier. Weak network activity raises risk; this factor is inverted (healthy = lower risk).",
-      },
-      {
-        name: "Puell Multiple",
-        weight: 0.07,
-        source: "CoinMetrics",
-        reads: "Daily miner revenue (USD) vs. its 365-day average",
-        why: "Extreme miner earnings have coincided with cycle tops; miner capitulation with bottoms. Only meaningful for proof-of-work assets.",
-      },
-    ],
-  },
-  {
-    group: "Price-derived",
-    blurb: "Computed directly from daily price history — no third-party opinion involved.",
-    factors: [
       {
         name: "Valuation",
         weight: 0.12,
@@ -54,22 +34,49 @@ const FACTOR_GROUPS: { group: string; blurb: string; factors: Factor[] }[] = [
         why: "How stretched price is relative to its own recent history. Crude but robust — it doesn't depend on any external data feed.",
       },
       {
-        name: "Structure (Volatility)",
+        name: "Pi-Cycle Top",
+        weight: 0.12,
+        source: "Exchange price history",
+        reads: "111-day moving average vs. 2× the 350-day moving average",
+        why: "Approaches and crosses 1 near major cycle tops. In our testing it was the strongest top-caller of any factor. Pure price, no external feed.",
+      },
+      {
+        name: "Puell Multiple",
+        weight: 0.08,
+        source: "CoinMetrics",
+        reads: "Daily miner revenue (USD) vs. its 365-day average",
+        why: "Extreme miner earnings have coincided with cycle tops; miner capitulation with bottoms. Only meaningful for proof-of-work assets.",
+      },
+      {
+        name: "Mayer Multiple",
         weight: 0.08,
         source: "Exchange price history",
-        reads: "30-day realized volatility, annualized, z-scored",
-        why: "Volatility expansions cluster around unstable market regimes. Elevated realized volatility raises the risk reading.",
+        reads: "Price relative to its 200-day moving average",
+        why: "A simple, long-standing valuation gauge — readings far above the 200-day average have marked overextension. Pure price.",
+      },
+    ],
+  },
+  {
+    group: "Tier 2 — Sentiment & momentum (24%)",
+    blurb: "What the crowd is feeling and how price is behaving. Useful confirmation, secondary to valuation.",
+    factors: [
+      {
+        name: "Fear & Greed Index",
+        weight: 0.12,
+        source: "alternative.me",
+        reads: "Composite crowd-sentiment index, 0–100",
+        why: "Extreme greed has historically been a better time to reduce than to add. Used as-is: greed maps to higher risk.",
       },
       {
         name: "Trend",
-        weight: 0.07,
+        weight: 0.08,
         source: "Exchange price history",
         reads: "RSI(14) + distance from 20-day and 200-day moving averages",
         why: "Overheated momentum — price far above both moving averages with high RSI — has historically preceded corrections.",
       },
       {
         name: "Sentiment (Momentum)",
-        weight: 0.05,
+        weight: 0.04,
         source: "Exchange price history",
         reads: "30-day return, z-scored over 365 days",
         why: "Very fast trailing gains tend to mean-revert. A small weight, since it overlaps partially with Trend.",
@@ -77,56 +84,43 @@ const FACTOR_GROUPS: { group: string; blurb: string; factors: Factor[] }[] = [
     ],
   },
   {
-    group: "Market positioning",
-    blurb: "What other market participants are feeling and how they're positioned.",
+    group: "Tier 3 — Macro & context (20%)",
+    blurb: "The liquidity backdrop and structural context. These are weak cycle-timers on their own, so they are kept at low weight — present for context, not relied on to call turns.",
     factors: [
-      {
-        name: "Fear & Greed Index",
-        weight: 0.10,
-        source: "alternative.me",
-        reads: "Composite crowd-sentiment index, 0–100",
-        why: "Extreme greed has historically been a better time to reduce than to add. Used as-is: greed maps to higher risk.",
-      },
       {
         name: "BTC Dominance",
-        weight: 0.08,
-        source: "CoinGecko",
+        weight: 0.05,
+        source: "CoinMetrics",
         reads: "Bitcoin's share of BTC+ETH market cap (inverted)",
-        why: "Falling dominance means capital rotating into more speculative assets — a late-cycle pattern. Low dominance raises the risk reading.",
+        why: "Falling dominance means capital rotating into more speculative assets — a late-cycle pattern. A soft signal, so it carries little weight.",
       },
       {
-        name: "Funding Rate",
-        weight: 0.06,
-        source: "OKX perpetual futures",
-        reads: "Realized funding rate history, z-scored",
-        why: "Persistently positive funding means leveraged longs are paying to stay long — crowded positioning that amplifies downside moves.",
+        name: "Structure (Volatility)",
+        weight: 0.05,
+        source: "Exchange price history",
+        reads: "30-day realized volatility, annualized, z-scored",
+        why: "Volatility expansions cluster around unstable regimes — but they spike at bottoms as well as tops, so it's context rather than a directional call.",
       },
-    ],
-  },
-  {
-    group: "Macro",
-    blurb: "The liquidity backdrop crypto trades against.",
-    factors: [
       {
-        name: "Fed Funds Rate",
-        weight: 0.06,
-        source: "FRED (FEDFUNDS)",
-        reads: "Effective federal funds rate",
-        why: "Tighter policy drains liquidity from risk assets. Higher rates raise the risk reading.",
+        name: "Network Health",
+        weight: 0.04,
+        source: "CoinMetrics",
+        reads: "Hash rate + active addresses, averaged (inverted: healthy = lower risk)",
+        why: "A network with rising security spend and real usage is structurally healthier. A slow-moving background factor, kept at low weight.",
       },
       {
         name: "US Dollar Index (DXY)",
-        weight: 0.05,
+        weight: 0.03,
         source: "Market data (DX-Y.NYB)",
         reads: "Dollar strength, z-scored over 365 days",
-        why: "A strengthening dollar has historically been a headwind for crypto, which trades as a risk asset priced in dollars.",
+        why: "A strengthening dollar is generally a headwind for risk assets, but it's a loose, lagging relationship — hence a small context weight.",
       },
       {
         name: "CPI Inflation (YoY)",
-        weight: 0.04,
+        weight: 0.03,
         source: "FRED (CPIAUCSL)",
         reads: "Year-over-year change in US CPI",
-        why: "High inflation pressures central banks toward tightening — the smallest weight, as its effect mostly flows through rates.",
+        why: "Inflation pressures central-bank tightening, but its effect on crypto is slow and indirect — the smallest weight in the model.",
       },
     ],
   },
@@ -138,7 +132,7 @@ function WeightBar({ weight }: { weight: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ flex: 1, height: 6, backgroundColor: "var(--bg)", borderRadius: 3, overflow: "hidden", minWidth: 60 }}>
-        <div style={{ width: `${(weight / 0.14) * 100}%`, height: "100%", backgroundColor: "var(--blue)", borderRadius: 3 }} />
+        <div style={{ width: `${(weight / 0.16) * 100}%`, height: "100%", backgroundColor: "var(--blue)", borderRadius: 3 }} />
       </div>
       <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 700, minWidth: 38, textAlign: "right" }}>
         {(weight * 100).toFixed(0)}%
@@ -202,6 +196,11 @@ export default function MethodologyPage() {
             (weights sum to {(totalWeight * 100).toFixed(0)}%)
           </span>
         </h2>
+        <p style={{ color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 20, maxWidth: 660 }}>
+          Grouped by conviction tier. Factors are weighted by how reliably they have discriminated
+          cycle tops from bottoms in historical testing — the valuation core carries most of the weight,
+          and macro sits at the bottom as context rather than a timing signal.
+        </p>
 
         {FACTOR_GROUPS.map((group) => (
           <div key={group.group} style={{ marginBottom: 32 }}>
@@ -275,8 +274,14 @@ export default function MethodologyPage() {
             </li>
             <li>
               <strong style={{ color: "var(--text)" }}>Past regimes may not repeat.</strong> Every factor&apos;s
-              usefulness rests on historical patterns (MVRV cycles, funding blowups, macro tightening). A
+              usefulness rests on historical patterns (MVRV cycles, miner economics, macro tightening). A
               structurally new market can break any of them.
+            </li>
+            <li>
+              <strong style={{ color: "var(--text)" }}>It under-flags leverage-driven tops.</strong> The model
+              is built on valuation and on-chain conditions, so a top driven mainly by derivatives leverage or
+              flows — rather than classic on-chain euphoria — reads as less extreme than it was. The November
+              2021 high is the clearest example: the model registered it as elevated, not dangerous.
             </li>
             <li>
               <strong style={{ color: "var(--text)" }}>This is decision support, not advice.</strong> The model

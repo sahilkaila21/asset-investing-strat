@@ -13,7 +13,7 @@ const tools = [
     tagColor: "var(--green)",
     description:
       "13-factor risk score combining on-chain data, market sentiment, and macro signals. A weekly, published signal for BTC, ETH, SOL and more — built to support disciplined capital preservation, not to chase trades.",
-    features: ["MVRV · Puell Multiple · Network Health", "Fear & Greed · Funding Rate · BTC Dominance", "Fed Funds · CPI · DXY"],
+    features: ["MVRV · Pi-Cycle · Puell · Mayer", "Fear & Greed · Trend · BTC Dominance", "Published, weighted methodology"],
   },
   {
     href: "/tools/fear-greed",

@@ -249,12 +249,6 @@ with st.sidebar:
             _cs("Puell Multiple", "Miner revenue / 365d avg — CoinMetrics data pending.")
             w_puell = 0
 
-        if _prev_ds.get("Funding Rate"):
-            w_funding_rate = st.slider("Funding Rate", 0, 100, int(dw["funding_rate"]*100), help="Perp funding rate.")
-        else:
-            _cs("Funding Rate", "Perp funding rate — requires longer historical dataset.")
-            w_funding_rate = 0
-
     with st.expander("📊 Market & Sentiment", expanded=True):
         w_fear_greed = st.slider("Fear & Greed", 0, 100, int(dw["fear_greed"]*100), help="alternative.me composite. High greed = high risk.")
 
@@ -269,15 +263,11 @@ with st.sidebar:
 
     with st.expander("💰 Price", expanded=True):
         w_valuation = st.slider("Valuation", 0, 100, int(dw["valuation"]*100), help="Z-score of log price vs 365-day history.")
+        w_pi_cycle  = st.slider("Pi-Cycle Top", 0, 100, int(dw["pi_cycle"]*100), help="111-day MA vs 2x 350-day MA. Approaches 1 at cycle tops.")
+        w_mayer     = st.slider("Mayer Multiple", 0, 100, int(dw["mayer"]*100), help="Price / 200-day MA. High = overextended.")
         w_structure = st.slider("Structure", 0, 100, int(dw["structure"]*100), help="Annualized 30-day volatility. High vol = high risk.")
 
     with st.expander("🌍 Macro", expanded=True):
-        if _prev_ds.get("Interest Rate"):
-            w_interest_rate = st.slider("Interest Rate", 0, 100, int(dw["interest_rate"]*100), help="Fed Funds Rate.")
-        else:
-            _cs("Interest Rate", "Fed Funds Rate — FRED data pending.")
-            w_interest_rate = 0
-
         if _prev_ds.get("DXY"):
             w_dxy = st.slider("DXY (Dollar)", 0, 100, int(dw["dxy"]*100), help="US Dollar Index.")
         else:
@@ -292,10 +282,10 @@ with st.sidebar:
 
     raw_weights = {
         "mvrv": w_mvrv, "network_health": w_network_health, "puell": w_puell,
-        "funding_rate": w_funding_rate, "fear_greed": w_fear_greed,
+        "fear_greed": w_fear_greed,
         "btc_dominance": w_btc_dominance, "trend": w_trend, "sentiment": w_sentiment,
-        "valuation": w_valuation, "structure": w_structure,
-        "interest_rate": w_interest_rate, "dxy": w_dxy, "cpi": w_cpi,
+        "valuation": w_valuation, "pi_cycle": w_pi_cycle, "mayer": w_mayer,
+        "structure": w_structure, "dxy": w_dxy, "cpi": w_cpi,
     }
     total_w = sum(raw_weights.values())
     if total_w == 0:
@@ -582,16 +572,16 @@ with tab2:
 
     factor_rows = [
         ("MVRV",           f"{weights['mvrv']:.1%}",           "CoinMetrics",    "✓" if data_status["MVRV"] else "–",           "High MVRV = overvalued vs realized cap"),
-        ("Network Health", f"{weights['network_health']:.1%}",  "CoinMetrics",    "✓" if data_status["Network Health"] else "–", "Hash Rate + Active Addresses. High = healthy = lower risk"),
+        ("Valuation",      f"{weights['valuation']:.1%}",       "yfinance",       "✓",                                          "Log price z-score vs 365-day history"),
+        ("Pi-Cycle Top",   f"{weights['pi_cycle']:.1%}",        "yfinance",       "✓",                                          "111DMA vs 2x350DMA. Approaches 1 at cycle tops"),
         ("Puell Multiple", f"{weights['puell']:.1%}",           "CoinMetrics",    "✓" if data_status["Puell"] else "–",          "Miner revenue / 365d avg. >4 = cycle top"),
-        ("Funding Rate",   f"{weights['funding_rate']:.1%}",    "Binance Futures","✓" if data_status["Funding Rate"] else "–",   "High positive rate = overleveraged longs"),
+        ("Mayer Multiple", f"{weights['mayer']:.1%}",           "yfinance",       "✓",                                          "Price / 200DMA. High = overextended"),
         ("Fear & Greed",   f"{weights['fear_greed']:.1%}",      "alternative.me", "✓" if data_status["Fear & Greed"] else "–",  "Extreme greed (>75) = high risk"),
-        ("BTC Dominance",  f"{weights['btc_dominance']:.1%}",   "CoinGecko",      "✓" if data_status["BTC Dominance"] else "–", "Low dominance = altcoin euphoria = late bull"),
         ("Trend",          f"{weights['trend']:.1%}",           "yfinance",       "✓",                                          "RSI-14, price vs MA-20 & MA-200"),
         ("Sentiment",      f"{weights['sentiment']:.1%}",       "yfinance",       "✓",                                          "Z-score of 30-day return"),
-        ("Valuation",      f"{weights['valuation']:.1%}",       "yfinance",       "✓",                                          "Log price z-score vs 365-day history"),
+        ("BTC Dominance",  f"{weights['btc_dominance']:.1%}",   "CoinGecko",      "✓" if data_status["BTC Dominance"] else "–", "Low dominance = altcoin euphoria = late bull"),
         ("Structure",      f"{weights['structure']:.1%}",       "yfinance",       "✓",                                          "30-day annualized volatility"),
-        ("Interest Rate",  f"{weights['interest_rate']:.1%}",   "FRED",           "✓" if data_status["Interest Rate"] else "–", "Fed Funds Rate. High = risk-off"),
+        ("Network Health", f"{weights['network_health']:.1%}",  "CoinMetrics",    "✓" if data_status["Network Health"] else "–", "Hash Rate + Active Addresses. High = healthy = lower risk"),
         ("DXY",            f"{weights['dxy']:.1%}",             "yfinance",       "✓",                                          "Strong USD = headwind for crypto"),
         ("CPI Inflation",  f"{weights['cpi']:.1%}",             "FRED",           "✓" if data_status["CPI"] else "–",           "High YoY CPI → rate hikes → risk-off"),
     ]

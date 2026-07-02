@@ -12,11 +12,12 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     q: "Is this rigorous, or just another sentiment gauge with a nice UI?",
     a: (
       <>
-        The model is a 13-factor weighted composite built on on-chain data (MVRV, Puell Multiple, network
-        health), market positioning (funding rates, Fear &amp; Greed, BTC dominance), price structure, and
-        macro conditions (Fed Funds, CPI, DXY). Every factor, weight, and data source is published on the{" "}
+        The model is a 13-factor weighted composite. The heaviest weight sits on valuation and on-chain
+        factors that reliably discriminate cycle tops from bottoms (MVRV, Pi-Cycle Top, Puell, Mayer
+        Multiple, price valuation), with sentiment and momentum next (Fear &amp; Greed, trend), and macro
+        (DXY, CPI) kept light as context. Every factor, its weight, and its data source is published on the{" "}
         <Link href="/methodology" style={linkStyle}>Methodology page</Link> — including the normalization
-        math. You can judge the rigor yourself rather than take our word for it.
+        math and which factors were dropped, and why. You can judge the rigor yourself rather than take our word for it.
       </>
     ),
   },

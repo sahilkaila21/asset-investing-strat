@@ -40,6 +40,14 @@ def add_factors(data: pd.DataFrame, external: dict | None = None) -> pd.DataFram
     df["return_30"] = df["close"].pct_change(30)
     df["sentiment"] = minmax_scale_100(zscore(df["return_30"], 365))
 
+    # ── Pi-Cycle Top (111DMA vs 2x350DMA; approaches/exceeds 1 at cycle tops) ──
+    df["pi_cycle_raw"] = df["close"].rolling(111).mean() / (df["close"].rolling(350).mean() * 2)
+    df["pi_cycle"] = minmax_scale_100(df["pi_cycle_raw"])
+
+    # ── Mayer Multiple (price / 200DMA; high = overextended = high risk) ───────
+    df["mayer_raw"] = df["close"] / df["close"].rolling(200).mean()
+    df["mayer"] = minmax_scale_100(df["mayer_raw"])
+
     # ── Fear & Greed (0 = fear/low risk → 100 = greed/high risk) ─────────────
     fg = ext.get("fear_greed", pd.Series(dtype=float))
     if not fg.empty:
@@ -143,21 +151,41 @@ def add_factors(data: pd.DataFrame, external: dict | None = None) -> pd.DataFram
     return df.dropna(subset=["close", "valuation", "trend", "structure", "sentiment"])
 
 
-# Default weights — sum to 1.0
+# ── Model version & changelog ─────────────────────────────────────────────────
+# v2.0 (2026-07-02): Factor audit against externally-known cycle turning points
+#   (2017/2021 tops, 2018/2022 bottoms). See methodology page for the writeup.
+#   - REMOVED interest_rate (spread -66: Fed Funds peaked at the 2022 bottom, so
+#     as constructed it read HIGHER risk at bottoms than tops — backwards for
+#     crypto cycle timing) and funding_rate (flat: OKX free history is ~95d vs
+#     the 365d z-score window, so it sat near a constant 50).
+#   - ADDED pi_cycle (111DMA / 2*350DMA; best top discriminator, spread 65) and
+#     mayer (price / 200DMA; spread 40). Both price-only, no new data dependency.
+#   - Reweighted into theory-driven tiers (NOT backtest-optimized). Previously
+#     ~41% of weight sat on non-discriminating factors, compressing the composite
+#     into 3-6 and making the "accumulate" zone unreachable (0% of weeks).
+#   NUPL and MVRV Z-Score were evaluated and REJECTED as collinear with MVRV
+#   (NUPL = 1 - 1/MVRV exactly; MVRV-Z scaled worse than the raw MVRV factor).
+# v1.0: original 13-factor set.
+MODEL_VERSION = "2.0"
+
+# Default weights — sum to 1.0. Grouped by conviction tier.
 DEFAULT_WEIGHTS: dict[str, float] = {
-    "mvrv":           0.14,
+    # Tier 1 — validated valuation core (0.56)
+    "mvrv":           0.16,
     "valuation":      0.12,
-    "fear_greed":     0.10,
-    "network_health": 0.08,
-    "btc_dominance":  0.08,
-    "trend":          0.07,
-    "funding_rate":   0.06,
-    "puell":          0.07,
-    "structure":      0.08,
-    "interest_rate":  0.06,
-    "sentiment":      0.05,
-    "dxy":            0.05,
-    "cpi":            0.04,
+    "pi_cycle":       0.12,
+    "puell":          0.08,
+    "mayer":          0.08,
+    # Tier 2 — sentiment & momentum (0.24)
+    "fear_greed":     0.12,
+    "trend":          0.08,
+    "sentiment":      0.04,
+    # Tier 3 — macro / context, demoted but retained (0.20)
+    "btc_dominance":  0.05,
+    "structure":      0.05,
+    "network_health": 0.04,
+    "dxy":            0.03,
+    "cpi":            0.03,
 }
 
 
