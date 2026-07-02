@@ -1,15 +1,18 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 
 interface Props {
   title: string;
   description: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
-export default function ComingSoon({ title, description, icon }: Props) {
+export default function ComingSoon({ title, description, icon: Icon }: Props) {
   return (
     <div style={{ maxWidth: 600, margin: "80px auto", textAlign: "center", padding: "0 24px" }}>
-      <div style={{ fontSize: "3rem", marginBottom: 20 }}>{icon}</div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+        <Icon size={40} color="var(--muted)" strokeWidth={1.5} />
+      </div>
       <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: 12 }}>{title}</h1>
       <p style={{ color: "var(--muted)", fontSize: "1rem", lineHeight: 1.6, marginBottom: 32 }}>
         {description}

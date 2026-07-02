@@ -1,3 +1,5 @@
+import { BarChart3 } from "lucide-react";
+
 export const metadata = {
   title: "Risk Model — Alphabit",
   description: "13-factor crypto risk model with weekly buy/sell signals for BTC, ETH, SOL and more.",
@@ -23,7 +25,7 @@ export default function RiskModelPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: "1.1rem" }}>📊</span>
+          <BarChart3 size={18} color="var(--blue)" strokeWidth={1.75} />
           <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>Risk Model</span>
           <span
             style={{

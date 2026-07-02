@@ -1,5 +1,6 @@
 import ComingSoon from "@/components/ComingSoon";
+import { RefreshCw } from "lucide-react";
 export const metadata = { title: "Altcoin Season Index — Alphabit" };
 export default function Page() {
-  return <ComingSoon title="Altcoin Season Index" icon="🔄" description="Track which assets are outperforming BTC and spot early signs of an altcoin season. Know when to rotate — before it peaks." />;
+  return <ComingSoon title="Altcoin Season Index" icon={RefreshCw} description="A read on whether altcoins are outperforming Bitcoin, and by how much — context for capital allocation decisions, not a timing signal." />;
 }

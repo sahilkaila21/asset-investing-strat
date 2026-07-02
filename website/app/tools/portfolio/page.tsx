@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Briefcase } from "lucide-react";
 
 type Coin = "BTC" | "ETH" | "SOL" | "XRP" | "BNB" | "ADA" | "AVAX" | "DOGE";
 
@@ -259,7 +260,9 @@ export default function PortfolioTracker() {
 
       {holdings.length === 0 ? (
         <div style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "60px 32px", textAlign: "center" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: 16 }}>💼</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <Briefcase size={40} color="var(--muted)" strokeWidth={1.5} />
+          </div>
           <p style={{ fontWeight: 600, marginBottom: 8 }}>No holdings yet</p>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: 24 }}>Add your first asset to start tracking your portfolio.</p>
           <button

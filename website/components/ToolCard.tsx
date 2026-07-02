@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 interface Tool {
   href: string;
-  icon: string;
+  icon: ReactNode;
   label: string;
   tag: string;
   tagColor: string;
@@ -35,7 +35,7 @@ export default function ToolCard({ tool }: { tool: Tool }) {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "1.5rem" }}>{tool.icon}</span>
+            {tool.icon}
             <span style={{ fontWeight: 700, fontSize: "1rem" }}>{tool.label}</span>
           </div>
           <span

@@ -1,30 +1,33 @@
 import Link from "next/link";
 import ToolCard from "@/components/ToolCard";
+import { BarChart3, Thermometer, Globe, Calculator, Briefcase, Waves, Link2, RefreshCw, Zap } from "lucide-react";
+
+const iconProps = { size: 22, color: "var(--blue)", strokeWidth: 1.75 };
 
 const tools = [
   {
     href: "/tools/risk-model",
-    icon: "📊",
+    icon: <BarChart3 {...iconProps} />,
     label: "Risk Model",
     tag: "Live",
     tagColor: "var(--green)",
     description:
-      "13-factor risk score combining on-chain data, market sentiment, and macro signals. Get a weekly buy/sell signal for BTC, ETH, SOL and more.",
+      "13-factor risk score combining on-chain data, market sentiment, and macro signals. A weekly, published signal for BTC, ETH, SOL and more — built to support disciplined capital preservation, not to chase trades.",
     features: ["MVRV · Puell Multiple · Network Health", "Fear & Greed · Funding Rate · BTC Dominance", "Fed Funds · CPI · DXY"],
   },
   {
     href: "/tools/fear-greed",
-    icon: "🌡️",
+    icon: <Thermometer {...iconProps} />,
     label: "Fear & Greed",
     tag: "Live",
     tagColor: "var(--green)",
     description:
-      "Track crypto market sentiment on a 0–100 scale. Extreme fear historically signals buying opportunities; extreme greed often precedes corrections.",
+      "Track crypto market sentiment on a 0–100 scale. Extreme readings, in either direction, are useful context for gauging when conditions are stretched.",
     features: ["Live score + gauge", "365-day history chart", "Yesterday · 1W · 1M snapshots"],
   },
   {
     href: "/tools/macro",
-    icon: "🌍",
+    icon: <Globe {...iconProps} />,
     label: "Macro Dashboard",
     tag: "Live",
     tagColor: "var(--green)",
@@ -34,7 +37,7 @@ const tools = [
   },
   {
     href: "/tools/dca-calculator",
-    icon: "🧮",
+    icon: <Calculator {...iconProps} />,
     label: "DCA Calculator",
     tag: "Live",
     tagColor: "var(--green)",
@@ -44,7 +47,7 @@ const tools = [
   },
   {
     href: "/tools/portfolio",
-    icon: "💼",
+    icon: <Briefcase {...iconProps} />,
     label: "Portfolio Tracker",
     tag: "Live",
     tagColor: "var(--green)",
@@ -54,44 +57,20 @@ const tools = [
   },
   {
     href: "/tools/whale-tracker",
-    icon: "🐳",
+    icon: <Waves {...iconProps} />,
     label: "Whale Tracker",
     tag: "Live",
     tagColor: "var(--green)",
     description:
-      "Real-time feed of Bitcoin transfers over 100 BTC. Track where the big money is moving — large transactions often precede major price action.",
-    features: ["Transactions ≥ 100 BTC", "USD value · size classification", "Live feed with tx links"],
+      "Real-time feed of Bitcoin transfers of 10 BTC or more from confirmed blocks. Large on-chain movements are one input among many for reading market conditions.",
+    features: ["Transactions ≥ 10 BTC", "USD value · size classification", "Live feed with tx links"],
   },
-  {
-    href: "/tools/onchain",
-    icon: "🔗",
-    label: "On-Chain Analytics",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
-    description:
-      "Dive into the raw signals that move markets — exchange inflows/outflows, MVRV Z-score, active addresses, and miner revenue trends in one dashboard.",
-    features: ["Exchange inflow/outflow", "MVRV Z-score · NVT ratio", "Active addresses · Miner revenue"],
-  },
-  {
-    href: "/tools/altcoin-season",
-    icon: "🔄",
-    label: "Altcoin Season Index",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
-    description:
-      "Know when to rotate from Bitcoin into altcoins. Track which assets are outperforming BTC and spot early signs of an altcoin season before it peaks.",
-    features: ["Altcoin season score 0–100", "BTC dominance trend", "Top 50 altcoin performance vs BTC"],
-  },
-  {
-    href: "/tools/liquidation-map",
-    icon: "⚡",
-    label: "Liquidation Heatmap",
-    tag: "Coming Soon",
-    tagColor: "var(--muted)",
-    description:
-      "See where leveraged positions are clustered. Identify price levels where mass liquidations are likely — and use them as high-probability entry or exit zones.",
-    features: ["Long & short liquidation levels", "Cross-exchange leverage data", "BTC · ETH · SOL coverage"],
-  },
+];
+
+const comingSoonTools = [
+  { href: "/tools/onchain", icon: Link2, label: "On-Chain Analytics" },
+  { href: "/tools/altcoin-season", icon: RefreshCw, label: "Altcoin Season Index" },
+  { href: "/tools/liquidation-map", icon: Zap, label: "Liquidation Heatmap" },
 ];
 
 const stats = [
@@ -136,13 +115,13 @@ export default function Home() {
               marginBottom: 20,
             }}
           >
-            Data-driven crypto investing,{" "}
-            <span style={{ color: "var(--blue)" }}>built for alpha</span>
+            Know when to preserve capital,{" "}
+            <span style={{ color: "var(--blue)" }}>and when the odds favor you</span>
           </h1>
 
           <p style={{ fontSize: "1.1rem", color: "var(--muted)", lineHeight: 1.7, maxWidth: 560, marginBottom: 36 }}>
-            A suite of risk-managed investment tools for crypto — combining on-chain analytics, market
-            sentiment, and macro signals into clear, actionable weekly signals.
+            A disciplined, risk-managed approach to crypto investing — combining on-chain data, market
+            sentiment, and macro signals into a single published weekly signal.
           </p>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -215,6 +194,19 @@ export default function Home() {
             <ToolCard key={tool.href} tool={tool} />
           ))}
         </div>
+
+        <div style={{ marginTop: 28, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, fontSize: "0.8rem", color: "var(--muted)" }}>
+          <span>In development:</span>
+          {comingSoonTools.map((tool, i) => (
+            <span key={tool.href} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {i > 0 && <span style={{ opacity: 0.5 }}>·</span>}
+              <Link href={tool.href} style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--muted)", textDecoration: "none" }}>
+                <tool.icon size={14} strokeWidth={1.75} />
+                {tool.label}
+              </Link>
+            </span>
+          ))}
+        </div>
       </section>
 
       <div style={{ borderTop: "1px solid var(--border)" }} />
@@ -264,8 +256,8 @@ export default function Home() {
           }}
         >
           <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 8 }}>Free to use. No signup required.</h2>
-            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>All Alphabit tools are free. Open the Risk Model and start exploring.</p>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 8 }}>See this week&apos;s signal, free.</h2>
+            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Open the Risk Model to see the current score, zone, and methodology — no card required.</p>
           </div>
           <Link
             href="/tools/risk-model"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Calculator, BarChart3 } from "lucide-react";
 
 type Asset = "BTC" | "ETH" | "SOL" | "XRP";
 type Frequency = "weekly" | "biweekly" | "monthly";
@@ -322,7 +323,9 @@ function DCACalculator() {
                 color: "var(--muted)",
               }}
             >
-              <div style={{ fontSize: "2.5rem", marginBottom: 16 }}>🧮</div>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                <Calculator size={40} color="var(--muted)" strokeWidth={1.5} />
+              </div>
               <p style={{ fontSize: "0.9rem" }}>
                 Set your parameters and hit <strong style={{ color: "var(--text)" }}>Calculate</strong> to see how your DCA strategy would have performed.
               </p>
@@ -969,7 +972,9 @@ function DynamicDCA() {
                 color: "var(--muted)",
               }}
             >
-              <div style={{ fontSize: "2.5rem", marginBottom: 16 }}>📊</div>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                <BarChart3 size={40} color="var(--muted)" strokeWidth={1.5} />
+              </div>
               <p style={{ fontSize: "0.9rem" }}>
                 Set your parameters and hit <strong style={{ color: "var(--text)" }}>Run Simulation</strong> to see how the risk-based strategy compares to regular DCA.
               </p>
