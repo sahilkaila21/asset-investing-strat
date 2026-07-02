@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/configured";
 import type { User } from "@supabase/supabase-js";
 
 export default function AuthButton() {
@@ -10,7 +11,7 @@ export default function AuthButton() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured()) {
       setLoading(false);
       return;
     }
@@ -30,7 +31,7 @@ export default function AuthButton() {
   }, []);
 
   async function handleSignOut() {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
+    if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);

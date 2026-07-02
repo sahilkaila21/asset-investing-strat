@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Briefcase } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/configured";
 
 type Coin = "BTC" | "ETH" | "SOL" | "XRP" | "BNB" | "ADA" | "AVAX" | "DOGE";
 
@@ -89,18 +91,48 @@ export default function PortfolioTracker() {
   const [formAmount, setFormAmount] = useState("");
   const [formCost, setFormCost] = useState("");
 
-  // Load from localStorage
+  // Signed-in users get holdings synced to Supabase; everyone else keeps localStorage.
+  // No-ops entirely (userId stays null forever) until a real Supabase project is connected.
+  const [userId, setUserId] = useState<string | null>(null);
+
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setHoldings(JSON.parse(saved));
-    } catch {}
+    if (!isSupabaseConfigured()) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Save to localStorage
+  // Load holdings: from Supabase if signed in, otherwise localStorage
   useEffect(() => {
+    if (userId) {
+      const supabase = createClient();
+      supabase
+        .from("portfolio_holdings")
+        .select("id, coin, amount, avg_cost")
+        .eq("user_id", userId)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setHoldings(
+              data.map((d) => ({ id: d.id, coin: d.coin as Coin, amount: Number(d.amount), avgCost: Number(d.avg_cost) }))
+            );
+          }
+        });
+    } else {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setHoldings(JSON.parse(saved));
+      } catch {}
+    }
+  }, [userId]);
+
+  // Save to localStorage (anonymous users only — signed-in writes happen per-mutation below)
+  useEffect(() => {
+    if (userId) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings));
-  }, [holdings]);
+  }, [holdings, userId]);
 
   const fetchPrices = useCallback(async (coins: Coin[]) => {
     if (!coins.length) return;
@@ -123,17 +155,38 @@ export default function PortfolioTracker() {
     if (coins.length) fetchPrices(coins);
   }, [holdings, fetchPrices]);
 
-  function addHolding() {
+  async function addHolding() {
     const amount = parseFloat(formAmount);
     const cost = parseFloat(formCost);
     if (!amount || amount <= 0 || !cost || cost <= 0) return;
-    setHoldings((prev) => [...prev, { id: uid(), coin: formCoin, amount, avgCost: cost }]);
+
+    if (userId) {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("portfolio_holdings")
+        .insert({ user_id: userId, coin: formCoin, amount, avg_cost: cost })
+        .select("id, coin, amount, avg_cost")
+        .single();
+      if (!error && data) {
+        setHoldings((prev) => [
+          ...prev,
+          { id: data.id, coin: data.coin as Coin, amount: Number(data.amount), avgCost: Number(data.avg_cost) },
+        ]);
+      }
+    } else {
+      setHoldings((prev) => [...prev, { id: uid(), coin: formCoin, amount, avgCost: cost }]);
+    }
+
     setFormAmount("");
     setFormCost("");
     setShowForm(false);
   }
 
-  function removeHolding(id: string) {
+  async function removeHolding(id: string) {
+    if (userId) {
+      const supabase = createClient();
+      await supabase.from("portfolio_holdings").delete().eq("id", id).eq("user_id", userId);
+    }
     setHoldings((prev) => prev.filter((h) => h.id !== id));
   }
 
@@ -174,7 +227,7 @@ export default function PortfolioTracker() {
             Your holdings
           </h1>
           <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-            Stored locally in your browser · Add assets to track P&L and allocation.
+            {userId ? "Synced to your account" : "Stored locally in your browser"} · Add assets to track P&L and allocation.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -386,7 +439,7 @@ export default function PortfolioTracker() {
           </div>
 
           <p style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center" }}>
-            Prices from Yahoo Finance · Refreshed on load · Data stored in your browser only.
+            Prices from Yahoo Finance · Refreshed on load · {userId ? "Data synced to your account." : "Data stored in your browser only."}
           </p>
         </div>
       )}
